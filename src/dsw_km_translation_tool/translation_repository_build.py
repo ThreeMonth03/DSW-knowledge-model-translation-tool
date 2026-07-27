@@ -33,8 +33,15 @@ def build_translation_repository(
     repo_root: Path,
     config_path: Path = Path("translation-config.yml"),
     allow_uninitialized: bool = False,
+    preserve_existing_translations: bool = True,
 ) -> TranslationRepositoryBuildResult:
-    """Rebuild tree, PO, review report, and KM from Git-managed inputs."""
+    """Rebuild tree, PO, review report, and KM from Git-managed inputs.
+
+    ``preserve_existing_translations`` is intended for ordinary tree-to-output
+    rebuilds. Source synchronization must disable it after carrying exact
+    source matches into the catalog, otherwise stale tree text could survive a
+    changed source string.
+    """
 
     root = repo_root.resolve()
     resolved_config = config_path if config_path.is_absolute() else root / config_path
@@ -70,11 +77,16 @@ def build_translation_repository(
         po_path=str(source_po),
         model_path=str(source_km),
         out_dir=str(tree_dir),
-        preserve_existing_translations=True,
+        preserve_existing_translations=preserve_existing_translations,
     )
     workflow.write_report(
         report=context.report,
         report_path=str(root / paths.validation_report_path),
+    )
+    workflow.build_shared_blocks_directory(
+        tree_dir=str(tree_dir),
+        original_po_path=str(source_po),
+        out_shared_blocks_root=str(tree_dir / "shared_blocks"),
     )
     workflow.sync_shared_strings(
         tree_dir=str(tree_dir),

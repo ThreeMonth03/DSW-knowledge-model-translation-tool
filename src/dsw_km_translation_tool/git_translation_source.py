@@ -103,6 +103,7 @@ def sync_git_translation_source(
     build = build_translation_repository(
         repo_root=root,
         config_path=resolved_config,
+        preserve_existing_translations=False,
     )
     return GitTranslationSourceResult(
         repository=config.knowledge_model.upstream_repository,
