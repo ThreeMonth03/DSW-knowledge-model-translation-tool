@@ -1,0 +1,71 @@
+name: GitHub Translation CI
+
+on:
+  pull_request:
+    branches: ["{{TRACKING_BRANCH}}"]
+  push:
+    branches: ["{{TRACKING_BRANCH}}"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TOOLING_REPOSITORY: {{TOOLING_REPOSITORY}}
+  TOOLING_REF: {{TOOLING_REF}}
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout translation repository
+        uses: actions/checkout@v5
+        with:
+          path: translation-repo
+
+      - name: Checkout translation tooling
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ env.TOOLING_REPOSITORY }}
+          ref: ${{ env.TOOLING_REF }}
+          path: tooling-repo
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install tooling
+        working-directory: tooling-repo
+        run: make install-dev BOOTSTRAP_PYTHON=python
+
+      - name: Validate configuration
+        run: >-
+          tooling-repo/.venv/bin/dsw-km-validate-config
+          --config translation-repo/translation-config.yml
+          --summary "$GITHUB_STEP_SUMMARY"
+
+      - name: Check managed scaffold
+        run: >-
+          tooling-repo/.venv/bin/dsw-km-scaffold check
+          --repo-root translation-repo
+          --tooling-repo tooling-repo
+
+      - name: Verify pinned GitHub source release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          tooling-repo/.venv/bin/dsw-km-sync-github-release
+          --repo-root translation-repo
+          --check
+          --allow-unreleased
+
+      - name: Rebuild translation outputs
+        run: >-
+          tooling-repo/.venv/bin/dsw-km-build-translation-repo
+          --repo-root translation-repo
+          --allow-uninitialized
+
+      - name: Verify reproducible checkout
+        working-directory: translation-repo
+        run: git diff --exit-code

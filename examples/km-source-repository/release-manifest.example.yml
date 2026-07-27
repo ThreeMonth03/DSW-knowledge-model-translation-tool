@@ -1,0 +1,6 @@
+schema_version: 1
+package_id: {{ORGANIZATION_ID}}:{{KM_ID}}:0.1.0
+version: 0.1.0
+previous_package_id:
+forked_from: {{INITIAL_PARENT_PACKAGE_ID}}
+bundle_sha256: REPLACE_WITH_LOWERCASE_SHA256

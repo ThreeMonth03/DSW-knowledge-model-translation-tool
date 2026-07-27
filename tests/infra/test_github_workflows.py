@@ -13,6 +13,7 @@ from dsw_km_translation_tool.translation_repository_config import (
 from dsw_km_translation_tool.translation_repository_scaffold import (
     render_translation_repository_scaffold,
 )
+from tests.infra.test_translation_repository_config import write_github_config
 
 EXPECTED_TOOLING_REPOSITORY = "ThreeMonth03/dsw-km-translation-tool"
 EXPECTED_TOOLING_REF = "master"
@@ -297,3 +298,36 @@ def test_upstream_smoke_workflow_is_tooling_integration_check(repo_root: Path) -
     assert "actions/upload-artifact@v7" in workflow_text
     assert "git push" not in workflow_text
     assert "contents: write" not in workflow_text
+
+
+def test_github_only_translation_workflow_has_no_weblate_dependency(
+    repo_root: Path,
+    workspace: Path,
+) -> None:
+    config_path = workspace / "translation-config.yml"
+    write_github_config(config_path)
+    config = load_translation_repository_config(config_path)
+    files = render_translation_repository_scaffold(tooling_repo=repo_root, config=config)
+    workflow_item = next(
+        item for item in files if item.path == Path(".github/workflows/translation_ci.yml")
+    )
+    workflow = yaml.load(workflow_item.content, Loader=yaml.BaseLoader)
+
+    assert workflow["permissions"]["contents"] == "read"
+    assert workflow["on"]["pull_request"]["branches"] == ["main"]
+    assert "dsw-km-build-translation-repo" in workflow_item.content
+    assert "dsw-km-sync-github-release" in workflow_item.content
+    assert "--check" in workflow_item.content
+    assert "--allow-uninitialized" in workflow_item.content
+    assert "git diff --exit-code" in workflow_item.content
+    assert "GITHUB_TOKEN: ${{ github.token }}" in workflow_item.content
+    assert "LOCALIZE_API_TOKEN" not in workflow_item.content
+    assert "Weblate" not in workflow_item.content
+
+
+def test_source_workflows_verify_previous_github_release(repo_root: Path) -> None:
+    template_root = repo_root / "examples" / "km-source-repository" / ".github" / "workflows"
+    for name in ("validate.yml", "release.yml"):
+        text = (template_root / name).read_text(encoding="utf-8")
+        assert "GITHUB_TOKEN: ${{ github.token }}" in text
+        assert '--github-repository "$GITHUB_REPOSITORY"' in text

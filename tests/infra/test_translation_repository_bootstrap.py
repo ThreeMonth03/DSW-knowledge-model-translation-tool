@@ -9,7 +9,7 @@ from dsw_km_translation_tool.translation_repository_bootstrap import (
     bootstrap_translation_repository,
 )
 from tests.helpers import run_cli_command
-from tests.infra.test_translation_repository_config import write_config
+from tests.infra.test_translation_repository_config import write_config, write_github_config
 
 
 def test_bootstrap_scaffolds_config_docs_and_workflows(
@@ -155,3 +155,52 @@ def test_init_translation_repo_cli_scaffold_only(
     assert result.returncode == 0, result.stderr or result.stdout
     assert "Hydrated   : no" in result.stdout
     assert (target_repo / ".github" / "workflows" / "validate_translation_config.yml").exists()
+
+
+def test_github_bootstrap_scaffolds_without_weblate(
+    repo_root: Path,
+    workspace: Path,
+) -> None:
+    config_template = workspace / "github.yml"
+    target_repo = workspace / "translation-repo"
+    write_github_config(config_template)
+
+    result = bootstrap_translation_repository(
+        repo_root=target_repo,
+        tooling_repo=repo_root,
+        config_template_path=config_template,
+        hydrate=False,
+    )
+
+    assert result.hydrated is False
+    assert (target_repo / ".github" / "workflows" / "translation_ci.yml").exists()
+    assert not (target_repo / ".github" / "workflows" / "localize_auto_sync.yml").exists()
+    assert "no Weblate dependency" in (target_repo / "README.md").read_text(encoding="utf-8")
+
+
+def test_github_bootstrap_generates_empty_catalog_from_km(
+    repo_root: Path,
+    workspace: Path,
+    model_path: Path,
+) -> None:
+    config_template = workspace / "github.yml"
+    target_repo = workspace / "translation-repo"
+    write_github_config(
+        config_template,
+        organization_id="dsw",
+        km_id="root",
+        version="2.7.0",
+    )
+
+    result = bootstrap_translation_repository(
+        repo_root=target_repo,
+        tooling_repo=repo_root,
+        config_template_path=config_template,
+        source_km_input=model_path,
+    )
+
+    assert result.hydrated is True
+    assert result.source_po_path == target_repo / "sources/catalog/zh_Hant/catalog.po"
+    assert result.source_po_path.exists()
+    assert (target_repo / "tree" / "_translation_tree.json").exists()
+    assert (target_repo / "builds" / "final_translated.km").exists()

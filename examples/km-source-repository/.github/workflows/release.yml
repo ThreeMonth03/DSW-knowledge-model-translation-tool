@@ -1,0 +1,64 @@
+name: Publish KM Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  TOOLING_REPOSITORY: {{TOOLING_REPOSITORY}}
+  TOOLING_REF: {{TOOLING_REF}}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: km-repo
+          fetch-depth: 0
+
+      - uses: actions/checkout@v5
+        with:
+          repository: ${{ env.TOOLING_REPOSITORY }}
+          ref: ${{ env.TOOLING_REF }}
+          path: tooling-repo
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install validator
+        working-directory: tooling-repo
+        run: make install-dev BOOTSTRAP_PYTHON=python
+
+      - name: Validate immutable release boundary
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          tooling-repo/.venv/bin/dsw-km-validate-release
+          --repo-root km-repo
+          --tag "$GITHUB_REF_NAME"
+          --github-repository "$GITHUB_REPOSITORY"
+
+      - name: Prepare versioned assets
+        working-directory: km-repo
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          asset="$RUNNER_TEMP/{{KM_ID}}-${version}.km"
+          cp "km/{{KM_ID}}.km" "$asset"
+          sha256sum "$asset" > "${asset}.sha256"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          "$RUNNER_TEMP/{{KM_ID}}-${GITHUB_REF_NAME#v}.km"
+          "$RUNNER_TEMP/{{KM_ID}}-${GITHUB_REF_NAME#v}.km.sha256"
+          --repo "$GITHUB_REPOSITORY"
+          --verify-tag
+          --generate-notes

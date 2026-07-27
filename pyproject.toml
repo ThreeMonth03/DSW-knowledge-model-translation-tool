@@ -28,11 +28,15 @@ dev = [
 ]
 
 [project.scripts]
+dsw-km-catalog-from-km = "dsw_km_translation_tool.cli.catalog_from_km:main"
+dsw-km-build-translation-repo = "dsw_km_translation_tool.cli.build_translation_repository:main"
 dsw-km-discover-versions = "dsw_km_translation_tool.cli.discover_km_versions:main"
 dsw-km-export-tree = "dsw_km_translation_tool.cli.po_json_tree:main"
 dsw-km-init-translation-repo = "dsw_km_translation_tool.cli.init_translation_repository:main"
+dsw-km-init-source-repo = "dsw_km_translation_tool.cli.init_km_source_repository:main"
 dsw-km-import-github-translations = "dsw_km_translation_tool.cli.import_github_translations:main"
 dsw-km-po-to-km = "dsw_km_translation_tool.cli.po_to_km:main"
+dsw-km-prepare-release = "dsw_km_translation_tool.cli.prepare_km_release:main"
 dsw-km-pull-bundle = "dsw_km_translation_tool.cli.pull_km_bundle:main"
 dsw-km-pull-localize-po = "dsw_km_translation_tool.cli.pull_localize_po:main"
 dsw-km-report-alignment = "dsw_km_translation_tool.cli.report_alignment_status:main"
@@ -43,11 +47,13 @@ dsw-km-review-po = "dsw_km_translation_tool.cli.review_po_changes:main"
 dsw-km-scaffold = "dsw_km_translation_tool.cli.translation_repository_scaffold:main"
 dsw-km-status = "dsw_km_translation_tool.cli.translation_status:main"
 dsw-km-sync-latest-km = "dsw_km_translation_tool.cli.sync_latest_km:main"
+dsw-km-sync-github-release = "dsw_km_translation_tool.cli.sync_github_release:main"
 dsw-km-sync-localize = "dsw_km_translation_tool.cli.sync_from_localize:main"
 dsw-km-sync-shared-strings = "dsw_km_translation_tool.cli.sync_shared_strings:main"
 dsw-km-tree-to-po = "dsw_km_translation_tool.cli.tree_to_po:main"
 dsw-km-upstream-smoke = "dsw_km_translation_tool.cli.upstream_smoke:main"
 dsw-km-validate-config = "dsw_km_translation_tool.cli.validate_translation_config:main"
+dsw-km-validate-release = "dsw_km_translation_tool.cli.validate_km_release:main"
 dsw-km-workflow = "dsw_km_translation_tool.cli.translate_workflow:main"
 
 [tool.setuptools]

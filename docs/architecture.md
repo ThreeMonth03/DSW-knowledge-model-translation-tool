@@ -82,6 +82,21 @@ These modules connect the translation repository to the Weblate website:
 - [`translation_repository_bootstrap.py`][translation-repository-bootstrap-py]: scaffolds a new translation
   repository and hydrates it from Registry/Weblate inputs without committing or
   pushing.
+- `km_catalog.py` generates a deterministic Git-managed catalog directly from a
+  source KM, carrying translations only when UUID, field, and source text remain
+  unchanged.
+- `github_release.py` verifies versioned KM GitHub Release assets against their
+  checksum sidecars and expected DSW package identity.
+- `github_translation_source.py` checks or synchronizes the pinned release for a
+  Git-authoritative translation repository, then rebuilds derived outputs.
+- `km_release.py` validates append-only source KM history, release manifests,
+  checksums, and Git tag/version alignment.
+- `km_release_history.py` resolves and downloads the previous GitHub Release,
+  then delegates immutable-history validation to `km_release.py`.
+- `km_source_repository_scaffold.py` renders a source KM repository whose
+  branches are mutable but whose tags and published KM packages are immutable.
+- `translation_repository_build.py` rebuilds Git-authoritative translation
+  outputs without network or Weblate access.
 - [`translation_repository_scaffold.py`][translation-repository-scaffold-py]: renders, checks, and
   refreshes managed translation repository docs and workflows without changing
   repository config or translations.
@@ -112,6 +127,10 @@ belong in [Localize Sync Runbook](localize-sync-runbook.md).
   [KM Update Runbook](km-update-runbook.md).
 - [`examples/github-actions/validate_translation_config_template.yml`][validate-config-template] is the
   read-only config validation workflow for dedicated translation repositories.
+- `examples/github-actions-github/` contains the Weblate-free translation CI
+  profile.
+- `examples/km-source-repository/` contains source KM validation and tag-release
+  workflows.
 
 Keep GitHub Actions as orchestration. Branch selection, recovery, GitHub
 translation import decisions, KM generation, and commit decisions belong in

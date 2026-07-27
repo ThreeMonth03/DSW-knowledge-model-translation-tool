@@ -27,6 +27,7 @@ class KnowledgeModelRepositoryConfig:
     organization_id: str
     km_id: str
     upstream_repository: str
+    upstream_ref: str | None
     bundle_path: Path | None
     version: str
 
@@ -41,6 +42,7 @@ class TranslationLanguageConfig:
     translated_organization_id: str
     translated_km_id: str
     translated_name: str
+    catalog_path: Path | None
     supplemental_directory: Path | None
 
 
@@ -68,6 +70,13 @@ class LocalizeConfig:
 
 
 @dataclass(frozen=True)
+class WorkflowConfig:
+    """Select the translation repository authority and automation profile."""
+
+    mode: str
+
+
+@dataclass(frozen=True)
 class RegistryConfig:
     """DSW Registry endpoint used for KM version discovery."""
 
@@ -82,6 +91,7 @@ class KmVersionWorkspacePaths:
     package_id: str
     source_slug: str
     source_km_path: Path
+    source_po_path: Path
     localize_latest_po_path: Path
     translation_tree_dir: Path
     final_po_path: Path
@@ -100,12 +110,14 @@ class TranslationRepositoryConfig:
     translation: TranslationLanguageConfig
     branches: BranchConfig
     tooling: ToolingConfig
-    localize: LocalizeConfig
+    workflow: WorkflowConfig
+    localize: LocalizeConfig | None
     registry: RegistryConfig
 
 
 VERSION_RE = re.compile(r"^v?(?P<number>\d+(?:\.\d+){1,3})$")
 DEFAULT_REGISTRY_API_URL = "https://api.registry.ds-wizard.org"
+WORKFLOW_MODES = frozenset({"weblate", "github"})
 
 
 def load_translation_repository_config(path: str | Path) -> TranslationRepositoryConfig:
@@ -136,7 +148,18 @@ def load_translation_repository_config(path: str | Path) -> TranslationRepositor
         repository=_require_str(_require_dict(payload, "tooling"), "repository"),
         ref=_require_str(_require_dict(payload, "tooling"), "ref"),
     )
-    localize = _load_localize_config(_require_dict(payload, "localize"))
+    workflow = _load_workflow_config(_optional_dict(payload, "workflow"))
+    localize_payload = payload.get("localize")
+    if localize_payload is None:
+        if workflow.mode == "weblate":
+            raise TranslationRepositoryConfigError(
+                "`localize` is required when workflow.mode is `weblate`"
+            )
+        localize = None
+    elif isinstance(localize_payload, dict):
+        localize = _load_localize_config(localize_payload)
+    else:
+        raise TranslationRepositoryConfigError("Expected mapping at `localize`")
     registry = _load_registry_config(_optional_dict(payload, "registry"))
 
     return TranslationRepositoryConfig(
@@ -145,6 +168,7 @@ def load_translation_repository_config(path: str | Path) -> TranslationRepositor
         translation=translation,
         branches=branches,
         tooling=tooling,
+        workflow=workflow,
         localize=localize,
         registry=registry,
     )
@@ -158,6 +182,7 @@ def _load_knowledge_model_config(
         organization_id=_require_str(payload, "organization_id"),
         km_id=_require_str(payload, "km_id"),
         upstream_repository=_require_str(payload, "upstream_repository"),
+        upstream_ref=_optional_str(payload, "upstream_ref"),
         bundle_path=Path(bundle_path_raw) if bundle_path_raw else None,
         version=normalize_version(_require_str(payload, "version")),
     )
@@ -171,6 +196,7 @@ def _load_translation_config(payload: dict[str, Any]) -> TranslationLanguageConf
         translated_organization_id=_require_str(payload, "translated_organization_id"),
         translated_km_id=_require_str(payload, "translated_km_id"),
         translated_name=_require_str(payload, "translated_name"),
+        catalog_path=(Path(value) if (value := _optional_str(payload, "catalog_path")) else None),
         supplemental_directory=(
             Path(value) if (value := _optional_str(payload, "supplemental_directory")) else None
         ),
@@ -193,6 +219,16 @@ def _load_localize_config(payload: dict[str, Any]) -> LocalizeConfig:
     )
 
 
+def _load_workflow_config(payload: dict[str, Any]) -> WorkflowConfig:
+    mode = (_optional_str(payload, "mode") or "weblate").lower()
+    if mode not in WORKFLOW_MODES:
+        choices = ", ".join(sorted(WORKFLOW_MODES))
+        raise TranslationRepositoryConfigError(
+            f"workflow.mode must be one of: {choices}; got {mode!r}"
+        )
+    return WorkflowConfig(mode=mode)
+
+
 def _load_registry_config(payload: dict[str, Any]) -> RegistryConfig:
     return RegistryConfig(
         api_url=_optional_str(payload, "api_url") or DEFAULT_REGISTRY_API_URL,
@@ -203,6 +239,16 @@ def tracking_branch(config: TranslationRepositoryConfig) -> str:
     """Return the branch that should track the configured KM."""
 
     return config.branches.tracking_branch
+
+
+def require_localize_config(config: TranslationRepositoryConfig) -> LocalizeConfig:
+    """Return Weblate metadata or fail clearly for a GitHub-only repository."""
+
+    if config.localize is None:
+        raise TranslationRepositoryConfigError(
+            "This command requires workflow.mode `weblate` and a `localize` mapping"
+        )
+    return config.localize
 
 
 def version_paths(config: TranslationRepositoryConfig) -> KmVersionWorkspacePaths:
@@ -218,12 +264,15 @@ def version_paths(config: TranslationRepositoryConfig) -> KmVersionWorkspacePath
         f"{config.knowledge_model.organization_id}-{config.knowledge_model.km_id}-{normalized}"
     )
     target_lang = config.translation.target_language
+    weblate_po_path = Path("sources") / "localize" / target_lang / "latest.po"
+    source_po_path = config.translation.catalog_path or weblate_po_path
     return KmVersionWorkspacePaths(
         version=normalized,
         package_id=package_id,
         source_slug=source_slug,
         source_km_path=Path("sources") / "knowledge-models" / source_slug / f"{source_slug}.km",
-        localize_latest_po_path=Path("sources") / "localize" / target_lang / "latest.po",
+        source_po_path=source_po_path,
+        localize_latest_po_path=weblate_po_path,
         translation_tree_dir=Path("tree"),
         final_po_path=Path("builds") / "final_translated.po",
         final_km_path=Path("builds") / "final_translated.km",
