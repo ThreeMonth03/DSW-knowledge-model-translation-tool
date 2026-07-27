@@ -105,6 +105,54 @@ tooling:
     )
 
 
+def write_github_git_config(
+    path: Path,
+    *,
+    source_ref: str = "1" * 40,
+    tooling_ref: str = "abc123",
+    organization_id: str = "tw",
+    km_id: str = "root-tw",
+    version: str = "0.1.0",
+    upstream_bundle_path: str = "km/root-tw.km",
+) -> None:
+    """Write a GitHub-authoritative config pinned to a Git bundle."""
+
+    path.write_text(
+        f"""schema_version: 1
+
+workflow:
+  mode: github
+  source: git
+
+knowledge_model:
+  organization_id: {organization_id}
+  km_id: {km_id}
+  upstream_repository: ThreeMonth03/dsw-root-tw
+  upstream_ref: "{source_ref}"
+  upstream_bundle_path: {upstream_bundle_path}
+  bundle_path: sources/knowledge-models/{organization_id}-{km_id}-{version}/{organization_id}-{km_id}-{version}.km
+  version: {version}
+
+translation:
+  source_language: en
+  target_language: zh_Hant
+  target_language_label: zh-Hant
+  translated_organization_id: tw
+  translated_km_id: root-tw-zh-hant
+  translated_name: Taiwan DSW Knowledge Model (zh-Hant)
+  catalog_path: sources/catalog/zh_Hant/catalog.po
+
+branches:
+  tracking_branch: main
+
+tooling:
+  repository: ThreeMonth03/dsw-km-translation-tool
+  ref: {tooling_ref}
+""",
+        encoding="utf-8",
+    )
+
+
 def test_config_loader_normalizes_version_and_paths(workspace: Path) -> None:
     """Verify that KM repository config derives the tracking branch and workspace paths."""
 
@@ -152,12 +200,24 @@ def test_github_config_requires_no_localize_mapping(workspace: Path) -> None:
     paths = version_paths(config)
 
     assert config.workflow.mode == "github"
+    assert config.workflow.source == "release"
     assert config.localize is None
     assert config.knowledge_model.upstream_ref == "v0.1.0"
     assert paths.source_po_path == Path("sources/catalog/zh_Hant/catalog.po")
     assert paths.source_km_path == Path(
         "sources/knowledge-models/tw-root-tw-0.1.0/tw-root-tw-0.1.0.km"
     )
+
+
+def test_github_git_config_requires_commit_and_bundle_path(workspace: Path) -> None:
+    config_path = workspace / "translation-config.yml"
+    write_github_git_config(config_path)
+
+    config = load_translation_repository_config(config_path)
+
+    assert config.workflow.source == "git"
+    assert config.knowledge_model.upstream_ref == "1" * 40
+    assert config.knowledge_model.upstream_bundle_path == Path("km/root-tw.km")
 
 
 def test_validate_translation_config_cli_reports_summary(

@@ -50,6 +50,7 @@ def main() -> None:
         f"Target language: {config.translation.target_language}",
         f"KM version: {version}",
         f"Workflow mode: {config.workflow.mode}",
+        f"Source mode: {config.workflow.source}",
         f"Tracking branch: {tracking_branch(config)}",
         f"Source KM path: {paths.source_km_path.as_posix()}",
         f"Source PO path: {paths.source_po_path.as_posix()}",

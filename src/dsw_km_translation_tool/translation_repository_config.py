@@ -28,6 +28,7 @@ class KnowledgeModelRepositoryConfig:
     km_id: str
     upstream_repository: str
     upstream_ref: str | None
+    upstream_bundle_path: Path | None
     bundle_path: Path | None
     version: str
 
@@ -74,6 +75,7 @@ class WorkflowConfig:
     """Select the translation repository authority and automation profile."""
 
     mode: str
+    source: str
 
 
 @dataclass(frozen=True)
@@ -118,6 +120,8 @@ class TranslationRepositoryConfig:
 VERSION_RE = re.compile(r"^v?(?P<number>\d+(?:\.\d+){1,3})$")
 DEFAULT_REGISTRY_API_URL = "https://api.registry.ds-wizard.org"
 WORKFLOW_MODES = frozenset({"weblate", "github"})
+GITHUB_SOURCE_MODES = frozenset({"release", "git"})
+GIT_COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 def load_translation_repository_config(path: str | Path) -> TranslationRepositoryConfig:
@@ -149,6 +153,7 @@ def load_translation_repository_config(path: str | Path) -> TranslationRepositor
         ref=_require_str(_require_dict(payload, "tooling"), "ref"),
     )
     workflow = _load_workflow_config(_optional_dict(payload, "workflow"))
+    _validate_source_mode(knowledge_model=knowledge_model, workflow=workflow)
     localize_payload = payload.get("localize")
     if localize_payload is None:
         if workflow.mode == "weblate":
@@ -183,6 +188,7 @@ def _load_knowledge_model_config(
         km_id=_require_str(payload, "km_id"),
         upstream_repository=_require_str(payload, "upstream_repository"),
         upstream_ref=_optional_str(payload, "upstream_ref"),
+        upstream_bundle_path=_optional_safe_path(payload, "upstream_bundle_path"),
         bundle_path=Path(bundle_path_raw) if bundle_path_raw else None,
         version=normalize_version(_require_str(payload, "version")),
     )
@@ -226,13 +232,43 @@ def _load_workflow_config(payload: dict[str, Any]) -> WorkflowConfig:
         raise TranslationRepositoryConfigError(
             f"workflow.mode must be one of: {choices}; got {mode!r}"
         )
-    return WorkflowConfig(mode=mode)
+    source = (_optional_str(payload, "source") or "release").lower()
+    if source not in GITHUB_SOURCE_MODES:
+        choices = ", ".join(sorted(GITHUB_SOURCE_MODES))
+        raise TranslationRepositoryConfigError(
+            f"workflow.source must be one of: {choices}; got {source!r}"
+        )
+    if mode != "github" and source != "release":
+        raise TranslationRepositoryConfigError(
+            "workflow.source `git` requires workflow.mode `github`"
+        )
+    return WorkflowConfig(mode=mode, source=source)
 
 
 def _load_registry_config(payload: dict[str, Any]) -> RegistryConfig:
     return RegistryConfig(
         api_url=_optional_str(payload, "api_url") or DEFAULT_REGISTRY_API_URL,
     )
+
+
+def _validate_source_mode(
+    *,
+    knowledge_model: KnowledgeModelRepositoryConfig,
+    workflow: WorkflowConfig,
+) -> None:
+    if workflow.source != "git":
+        return
+    if not knowledge_model.upstream_ref or not GIT_COMMIT_RE.fullmatch(
+        knowledge_model.upstream_ref
+    ):
+        raise TranslationRepositoryConfigError(
+            "knowledge_model.upstream_ref must be a full lowercase Git commit "
+            "SHA when workflow.source is `git`"
+        )
+    if knowledge_model.upstream_bundle_path is None:
+        raise TranslationRepositoryConfigError(
+            "knowledge_model.upstream_bundle_path is required when workflow.source is `git`"
+        )
 
 
 def tracking_branch(config: TranslationRepositoryConfig) -> str:
@@ -332,6 +368,16 @@ def _optional_str(parent: dict[str, Any], key: str) -> str | None:
     if not isinstance(value, str) or not value.strip():
         raise TranslationRepositoryConfigError(f"Expected string at `{key}`")
     return value.strip()
+
+
+def _optional_safe_path(parent: dict[str, Any], key: str) -> Path | None:
+    raw_value = _optional_str(parent, key)
+    if raw_value is None:
+        return None
+    path = Path(raw_value)
+    if path.is_absolute() or ".." in path.parts or raw_value != path.as_posix():
+        raise TranslationRepositoryConfigError(f"Expected safe relative POSIX path at `{key}`")
+    return path
 
 
 def _optional_int(parent: dict[str, Any], key: str, default: int) -> int:

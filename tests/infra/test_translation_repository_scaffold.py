@@ -12,7 +12,10 @@ from dsw_km_translation_tool.translation_repository_scaffold import (
     sync_translation_repository_scaffold,
 )
 from tests.helpers import run_cli_command
-from tests.infra.test_translation_repository_config import write_config
+from tests.infra.test_translation_repository_config import (
+    write_config,
+    write_github_git_config,
+)
 
 
 def test_scaffold_sync_is_idempotent_and_preserves_config(
@@ -124,3 +127,28 @@ def test_scaffold_cli_check_fails_on_drift(
     assert result.returncode == 1
     assert "Changed" in result.stdout
     assert "docs/README.md" in result.stdout
+
+
+def test_scaffold_renders_pinned_git_source_profile(
+    repo_root: Path,
+    workspace: Path,
+) -> None:
+    target_repo = workspace / "translation-repo"
+    target_repo.mkdir()
+    write_github_git_config(target_repo / "translation-config.yml")
+
+    result = sync_translation_repository_scaffold(
+        repo_root=target_repo,
+        tooling_repo=repo_root,
+    )
+
+    assert result.aligned is False
+    workflow = (target_repo / ".github/workflows/translation_ci.yml").read_text(encoding="utf-8")
+    readme = (target_repo / "README.md").read_text(encoding="utf-8")
+    assert "dsw-km-sync-git-source" in workflow
+    assert 'SOURCE_REF: "' + "1" * 40 + '"' in workflow
+    assert "bundle: `km/root-tw.km`" in readme
+    assert check_translation_repository_scaffold(
+        repo_root=target_repo,
+        tooling_repo=repo_root,
+    ).aligned

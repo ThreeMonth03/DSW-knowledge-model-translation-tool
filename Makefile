@@ -25,6 +25,7 @@ DSW_KM_SCAFFOLD := $(VENV_BIN)/dsw-km-scaffold
 DSW_KM_STATUS := $(VENV_BIN)/dsw-km-status
 DSW_KM_SYNC_LATEST_KM := $(VENV_BIN)/dsw-km-sync-latest-km
 DSW_KM_SYNC_GITHUB_RELEASE := $(VENV_BIN)/dsw-km-sync-github-release
+DSW_KM_SYNC_GIT_SOURCE := $(VENV_BIN)/dsw-km-sync-git-source
 DSW_KM_SYNC_LOCALIZE := $(VENV_BIN)/dsw-km-sync-localize
 DSW_KM_SYNC_SHARED_STRINGS := $(VENV_BIN)/dsw-km-sync-shared-strings
 DSW_KM_TREE_TO_PO := $(VENV_BIN)/dsw-km-tree-to-po

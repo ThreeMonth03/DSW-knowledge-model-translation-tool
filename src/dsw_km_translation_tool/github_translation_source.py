@@ -61,9 +61,10 @@ def sync_github_translation_source(
     root = repo_root.resolve()
     resolved_config = config_path if config_path.is_absolute() else root / config_path
     config = load_translation_repository_config(resolved_config)
-    if config.workflow.mode != "github":
+    if config.workflow.mode != "github" or config.workflow.source != "release":
         raise GitHubTranslationSourceError(
-            "GitHub source synchronization requires workflow.mode `github`"
+            "GitHub Release synchronization requires workflow.mode `github` "
+            "and workflow.source `release`"
         )
 
     paths = version_paths(config)
