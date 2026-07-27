@@ -20,6 +20,9 @@ from dsw_km_translation_tool.legal_review import (
 PERSONAL_DATA_QUESTION_UUID = "49c009cb-a38c-4836-9780-8a8b3dd1cbac"
 PERSONAL_DATA_QUESTION_TITLE = 'Will you collect any data connected to a person, "personal data"?'
 GDPR_CHOICE_UUID = "caac09f2-be5c-4ba4-82dc-7f0ee33ab67d"
+RESEARCH_PROJECTS_LIST_UUID = "c3dabaaf-c946-4a0d-889c-ede966f97667"
+DELETED_BRANCH_ANSWER_UUID = "6dc3766a-79d7-4adc-b0e8-d72b73eb8d32"
+MOVED_REFERENCE_UUID = "8fe4a165-09a6-4e5d-835d-3255db21d0de"
 
 
 def test_legal_inventory_is_deterministic_and_traceable(
@@ -98,6 +101,7 @@ def test_legal_mapping_binds_sources_and_questions(
     assert result.jurisdiction == "TW"
     assert result.mapping_count == 1
     assert result.content_override_count == 1
+    assert result.question_addition_count == 1
     assert result.legal_source_count == 1
 
 
@@ -163,6 +167,88 @@ def test_legal_mapping_rejects_stale_content_override(
         )
 
 
+def test_legal_mapping_accepts_moved_reference_override(
+    workspace: Path,
+    model_path: Path,
+) -> None:
+    payload = _valid_mapping_payload(model_path)
+    payload["content_overrides"][0].update(
+        {
+            "source_uuid": MOVED_REFERENCE_UUID,
+            "source_type": "reference",
+            "source_fields": {
+                "label": "EC Guidelines on DPIAs",
+                "url": "https://ec.europa.eu/newsroom/article29/items/611236/en",
+            },
+            "proposed_fields": {
+                "label": "Taiwan privacy guidance",
+                "url": "https://law.moj.gov.tw/",
+            },
+        }
+    )
+    mapping_path = workspace / "legal-mapping.yml"
+    mapping_path.write_text(
+        yaml.safe_dump(payload, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    result = validate_legal_mapping(
+        mapping_path=mapping_path,
+        km_path=model_path,
+    )
+
+    assert result.content_override_count == 1
+
+
+def test_legal_mapping_rejects_content_below_deleted_ancestor(
+    workspace: Path,
+    model_path: Path,
+) -> None:
+    payload = _valid_mapping_payload(model_path)
+    payload["content_overrides"][0].update(
+        {
+            "source_uuid": DELETED_BRANCH_ANSWER_UUID,
+            "source_type": "answer",
+            "source_fields": {
+                "label": "Compliance with a legal obligation",
+            },
+            "proposed_fields": {
+                "label": "Applicable statutory duty",
+            },
+        }
+    )
+    mapping_path = workspace / "legal-mapping.yml"
+    mapping_path.write_text(
+        yaml.safe_dump(payload, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(LegalReviewError, match=r"ancestor .* is deleted"):
+        validate_legal_mapping(
+            mapping_path=mapping_path,
+            km_path=model_path,
+        )
+
+
+def test_legal_mapping_rejects_addition_below_deleted_parent(
+    workspace: Path,
+    model_path: Path,
+) -> None:
+    payload = _valid_mapping_payload(model_path)
+    payload["question_additions"][0]["parent_uuid"] = "e1ae38ed-14fb-4143-8a76-3883bd794b9b"
+    mapping_path = workspace / "legal-mapping.yml"
+    mapping_path.write_text(
+        yaml.safe_dump(payload, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(LegalReviewError, match="deleted"):
+        validate_legal_mapping(
+            mapping_path=mapping_path,
+            km_path=model_path,
+        )
+
+
 def test_legal_draft_appends_valid_deterministic_child_package(
     workspace: Path,
     model_path: Path,
@@ -195,13 +281,13 @@ def test_legal_draft_appends_valid_deterministic_child_package(
     assert draft["packages"][:-1] == source["packages"]
     assert result.package_id == "tw:root-tw:0.1.0"
     assert result.parent_package_id == "dsw:root:2.7.0"
-    assert result.event_count == 2
+    assert result.event_count == 5
     assert draft["id"] == result.package_id
     child = draft["packages"][-1]
     assert child["forkOfPackageId"] == result.parent_package_id
     assert child["previousPackageId"] is None
     assert child["id"] == result.package_id
-    assert len(child["events"]) == 2
+    assert len(child["events"]) == 5
 
     latest_by_uuid, model_info = KnowledgeModelService.load_model(str(first))
     question = latest_by_uuid[PERSONAL_DATA_QUESTION_UUID]["content"]
@@ -211,6 +297,19 @@ def test_legal_draft_appends_valid_deterministic_child_package(
     assert latest_by_uuid[GDPR_CHOICE_UUID]["content"]["label"] == (
         "Taiwan Personal Data Protection Act"
     )
+    route_question = next(
+        entity
+        for entity in latest_by_uuid.values()
+        if entity["content"].get("title") == "Which Taiwan legal routes may apply?"
+    )
+    assert route_question["parentUuid"] == RESEARCH_PROJECTS_LIST_UUID
+    assert route_question["content"]["questionType"] == "MultiChoiceQuestion"
+    route_choices = {
+        entity["content"]["label"]
+        for entity in latest_by_uuid.values()
+        if entity["parentUuid"] == route_question["entityUuid"]
+    }
+    assert route_choices == {"Human-subject research", "None or undetermined"}
 
 
 def test_legal_draft_rejects_structural_mapping_actions(
@@ -244,7 +343,7 @@ def test_legal_draft_rejects_structural_mapping_actions(
 def _valid_mapping_payload(model_path: Path) -> dict[str, object]:
     _, model_info = KnowledgeModelService.load_model(str(model_path))
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "jurisdiction": "TW",
         "as_of": "2026-07-27",
         "status": "drafting",
@@ -304,6 +403,38 @@ def _valid_mapping_payload(model_path: Path) -> dict[str, object]:
                 },
                 "proposed_fields": {
                     "label": "Taiwan Personal Data Protection Act",
+                },
+            }
+        ],
+        "question_additions": [
+            {
+                "addition_id": "tw-legal-routes",
+                "parent_uuid": RESEARCH_PROJECTS_LIST_UUID,
+                "topic": "legal-routing",
+                "status": "proposed",
+                "rationale": "Add a jurisdiction-specific applicability route.",
+                "authorities": [
+                    {
+                        "source_id": "pdpa",
+                        "provisions": ["Article 2"],
+                    }
+                ],
+                "question_type": "MultiChoiceQuestion",
+                "required_phase_uuid": "b101f2d0-2476-452d-aa8d-95a41a02b52c",
+                "tag_uuids": [],
+                "proposed": {
+                    "title_en": "Which Taiwan legal routes may apply?",
+                    "guidance_en": "Select every route that requires a documented review.",
+                    "choices": [
+                        {
+                            "choice_id": "human-subject-research",
+                            "label_en": "Human-subject research",
+                        },
+                        {
+                            "choice_id": "none-or-undetermined",
+                            "label_en": "None or undetermined",
+                        },
+                    ],
                 },
             }
         ],

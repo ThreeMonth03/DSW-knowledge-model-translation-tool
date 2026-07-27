@@ -59,7 +59,9 @@ def build_legal_draft(
     level. Each ``rewrite`` or ``replace`` mapping becomes one question edit
     event that changes only the question title and guidance text. Optional
     ``content_overrides`` add exact, source-bound edits for inherited answer,
-    choice, URL-reference, or resource-page text.
+    choice, URL-reference, or resource-page text. ``question_additions`` add
+    deterministic questions and choices whose entity UUIDs remain stable
+    across package versions.
     """
 
     validate_legal_mapping(mapping_path=mapping_path, km_path=km_path)
@@ -100,7 +102,13 @@ def build_legal_draft(
         package_id=package_id,
         as_of=as_of,
     )
-    events = question_events + content_override_events
+    question_addition_events = _build_question_addition_events(
+        mapping=mapping,
+        latest_by_uuid=latest_by_uuid,
+        package_id=package_id,
+        as_of=as_of,
+    )
+    events = question_events + content_override_events + question_addition_events
     child_package = {
         "createdAt": _format_timestamp(as_of),
         "description": description,
@@ -247,6 +255,140 @@ def _build_content_override_events(
             }
         )
     return events
+
+
+def _build_question_addition_events(
+    *,
+    mapping: dict[str, Any],
+    latest_by_uuid: dict[str, dict[str, Any]],
+    package_id: str,
+    as_of: date,
+) -> list[dict[str, Any]]:
+    raw_additions = mapping.get("question_additions", [])
+    if not isinstance(raw_additions, list):
+        raise LegalReviewError("legal mapping question_additions must be a list")
+
+    jurisdiction = str(mapping["jurisdiction"])
+    generated_entity_uuids: set[str] = set()
+    events: list[dict[str, Any]] = []
+    for item in raw_additions:
+        addition_id = str(item["addition_id"])
+        question_uuid = _addition_entity_uuid(
+            jurisdiction=jurisdiction,
+            entity_kind="question",
+            stable_id=addition_id,
+        )
+        _claim_addition_entity_uuid(
+            entity_uuid=question_uuid,
+            generated_entity_uuids=generated_entity_uuids,
+            latest_by_uuid=latest_by_uuid,
+        )
+
+        question_type = str(item["question_type"])
+        proposed = item["proposed"]
+        question_content: dict[str, Any] = {
+            "annotations": [],
+            "eventType": "AddQuestionEvent",
+            "questionType": question_type,
+            "requiredPhaseUuid": item.get("required_phase_uuid"),
+            "tagUuids": list(item.get("tag_uuids", [])),
+            "text": str(proposed["guidance_en"]),
+            "title": str(proposed["title_en"]),
+        }
+        if question_type == "ValueQuestion":
+            question_content.update(
+                {
+                    "validations": [],
+                    "valueType": str(proposed["value_type"]),
+                }
+            )
+        events.append(
+            _addition_event(
+                package_id=package_id,
+                entity_uuid=question_uuid,
+                parent_uuid=str(item["parent_uuid"]),
+                content=question_content,
+                as_of=as_of,
+            )
+        )
+
+        if question_type != "MultiChoiceQuestion":
+            continue
+        for choice in proposed["choices"]:
+            choice_uuid = _addition_entity_uuid(
+                jurisdiction=jurisdiction,
+                entity_kind="choice",
+                stable_id=f"{addition_id}/{choice['choice_id']}",
+            )
+            _claim_addition_entity_uuid(
+                entity_uuid=choice_uuid,
+                generated_entity_uuids=generated_entity_uuids,
+                latest_by_uuid=latest_by_uuid,
+            )
+            events.append(
+                _addition_event(
+                    package_id=package_id,
+                    entity_uuid=choice_uuid,
+                    parent_uuid=question_uuid,
+                    content={
+                        "annotations": [],
+                        "eventType": "AddChoiceEvent",
+                        "label": str(choice["label_en"]),
+                    },
+                    as_of=as_of,
+                )
+            )
+    return events
+
+
+def _addition_entity_uuid(
+    *,
+    jurisdiction: str,
+    entity_kind: str,
+    stable_id: str,
+) -> str:
+    identity = f"dsw-legal-addition/{jurisdiction}/{entity_kind}/{stable_id}"
+    return str(uuid5(NAMESPACE_URL, identity))
+
+
+def _claim_addition_entity_uuid(
+    *,
+    entity_uuid: str,
+    generated_entity_uuids: set[str],
+    latest_by_uuid: dict[str, dict[str, Any]],
+) -> None:
+    if entity_uuid in latest_by_uuid:
+        raise LegalReviewError(
+            f"Generated question addition entity UUID already exists in the KM: {entity_uuid}"
+        )
+    if entity_uuid in generated_entity_uuids:
+        raise LegalReviewError(f"Duplicate generated question addition entity UUID: {entity_uuid}")
+    generated_entity_uuids.add(entity_uuid)
+
+
+def _addition_event(
+    *,
+    package_id: str,
+    entity_uuid: str,
+    parent_uuid: str,
+    content: dict[str, Any],
+    as_of: date,
+) -> dict[str, Any]:
+    event_identity = "\n".join(
+        (
+            package_id,
+            entity_uuid,
+            parent_uuid,
+            json.dumps(content, ensure_ascii=False, sort_keys=True),
+        )
+    )
+    return {
+        "content": content,
+        "createdAt": _format_timestamp(as_of),
+        "entityUuid": entity_uuid,
+        "parentUuid": parent_uuid,
+        "uuid": str(uuid5(NAMESPACE_URL, event_identity)),
+    }
 
 
 def _edit_question_content(

@@ -121,8 +121,13 @@ sources. The draft builder preserves the complete parent history and appends one
 child package containing deterministic title and guidance edit events. Optional
 `content_overrides` bind inherited answer, choice, URL-reference, or
 resource-page fields to their exact source text before applying deterministic
-text replacements. Question mappings support only `rewrite` and `replace`;
-structural actions must be authored and reviewed in the DSW KM Editor.
+text replacements. Schema 2 also supports `question_additions` for curated
+`MultiChoiceQuestion` and `ValueQuestion` additions. Their entity UUIDs derive
+from the jurisdiction and stable addition IDs, so translations and KM history
+keep the same identity across package versions. Every inherited target and new
+question parent must remain reachable through a path with no deleted entity.
+Question mappings support only `rewrite` and `replace`; other structural
+actions must be authored and reviewed in the DSW KM Editor.
 
 After exporting from the DSW KM Editor, generate the manifest instead of
 copying IDs and checksums by hand:
