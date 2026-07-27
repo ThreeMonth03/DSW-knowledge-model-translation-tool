@@ -76,7 +76,7 @@ def build_repository_ci_sync_config(
         source_lang=source_lang or repository_config.translation.source_language,
         target_lang=target_lang or repository_config.translation.target_language,
         commit_message=commit_message,
-        source_po_path=source_po_path or paths.localize_latest_po_path,
+        source_po_path=source_po_path or paths.source_po_path,
         source_km_path=source_km_path or paths.source_km_path,
         output_organization_id=(
             output_organization_id or repository_config.translation.translated_organization_id

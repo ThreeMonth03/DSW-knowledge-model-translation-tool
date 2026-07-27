@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .translation_repository_config import (
     load_translation_repository_config,
+    require_localize_config,
     version_paths,
 )
 
@@ -45,10 +46,11 @@ def pull_localize_po(
     """
 
     repository_config = load_translation_repository_config(config_path)
+    localize = require_localize_config(repository_config)
     version = repository_config.knowledge_model.version
     paths = version_paths(repository_config)
     latest_po_path = repo_root / paths.localize_latest_po_path
-    url = repository_config.localize.download_url
+    url = localize.download_url
     download = downloader or _download_url
     downloaded = download(url)
 

@@ -19,6 +19,34 @@ repository:
 It does not commit, push, configure GitHub secrets, or upload translations to
 Weblate.
 
+## GitHub-only bootstrap
+
+Set `workflow.mode: github`, omit `localize`, add
+`translation.catalog_path`, and pin `knowledge_model.upstream_ref`. Scaffold
+without a source release:
+
+```shell
+.venv/bin/dsw-km-init-translation-repo \
+  --repo-root /path/to/translation-repo \
+  --tooling-repo . \
+  --config-template examples/translation-config-github.yml \
+  --scaffold-only
+```
+
+After the source KM is released, pin its GitHub tag in
+`knowledge_model.upstream_ref` and hydrate without Registry or Weblate access:
+
+```shell
+.venv/bin/dsw-km-sync-github-release \
+  --repo-root /path/to/translation-repo
+```
+
+The tool downloads the exact GitHub Release asset, checks its `.sha256` sidecar
+and package ID, and generates an empty catalog from the KM. Later catalog
+updates carry a translation only when its UUID, field, and source text are
+unchanged. `dsw-km-init-translation-repo --source-km` remains available for
+offline or migration bootstraps.
+
 ## Fields Missing from Weblate
 
 Use supplemental translations only when the source KM contains a user-facing

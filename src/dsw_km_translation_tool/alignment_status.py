@@ -12,6 +12,7 @@ from pathlib import Path
 from .localize_sync import Downloader, _download_url
 from .translation_repository_config import (
     load_translation_repository_config,
+    require_localize_config,
     version_paths,
 )
 from .workflow import TranslationWorkflowService
@@ -91,6 +92,7 @@ def build_alignment_status_report(
     resolved_repo_root = repo_root.resolve()
     resolved_config_path = _resolve_repo_path(resolved_repo_root, config_path)
     repository_config = load_translation_repository_config(resolved_config_path)
+    localize = require_localize_config(repository_config)
     version = repository_config.knowledge_model.version
     paths = version_paths(repository_config)
 
@@ -107,7 +109,7 @@ def build_alignment_status_report(
     _require_file(checked_in_final_km)
 
     download = downloader or _download_url
-    localize_bytes = download(repository_config.localize.download_url)
+    localize_bytes = download(localize.download_url)
 
     workflow = TranslationWorkflowService(
         source_lang=repository_config.translation.source_language,
@@ -184,7 +186,7 @@ def build_alignment_status_report(
         repo_root=str(resolved_repo_root),
         config_path=str(resolved_config_path),
         version=version,
-        localize_url=repository_config.localize.download_url,
+        localize_url=localize.download_url,
         checks=checks,
     )
 

@@ -1,0 +1,28 @@
+schema_version: 1
+
+workflow:
+  mode: github
+
+knowledge_model:
+  organization_id: tw
+  km_id: root-tw
+  upstream_repository: ThreeMonth03/dsw-root-tw
+  upstream_ref: UNRELEASED
+  bundle_path: sources/knowledge-models/tw-root-tw-0.1.0/tw-root-tw-0.1.0.km
+  version: 0.1.0
+
+translation:
+  source_language: en
+  target_language: zh_Hant
+  target_language_label: zh-Hant
+  translated_organization_id: tw
+  translated_km_id: root-tw-zh-hant
+  translated_name: Taiwan DSW Knowledge Model (zh-Hant)
+  catalog_path: sources/catalog/zh_Hant/catalog.po
+
+branches:
+  tracking_branch: main
+
+tooling:
+  repository: ThreeMonth03/dsw-km-translation-tool
+  ref: REPLACE_WITH_COMMIT_SHA

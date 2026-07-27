@@ -9,6 +9,7 @@ from pathlib import Path
 from .translation_repository_config import (
     TranslationRepositoryConfig,
     load_translation_repository_config,
+    version_paths,
 )
 
 
@@ -43,6 +44,8 @@ WORKFLOW_TEMPLATE_SUFFIX = "_template.yml"
 WORKFLOW_TARGET_SUFFIX = ".yml"
 TRANSLATION_REPOSITORY_TEMPLATE_DIR = Path("examples") / "translation-repository"
 GITHUB_ACTIONS_TEMPLATE_DIR = Path("examples") / "github-actions"
+GITHUB_TRANSLATION_REPOSITORY_TEMPLATE_DIR = Path("examples") / "translation-repository-github"
+GITHUB_TRANSLATION_ACTIONS_TEMPLATE_DIR = Path("examples") / "github-actions-github"
 TEMPLATE_TOKEN_RE = re.compile(r"(?<!\$)\{\{(?P<name>[^{}]+)\}\}")
 
 
@@ -57,7 +60,14 @@ def render_translation_repository_scaffold(
     values = _template_values(config)
     rendered: list[RenderedScaffoldFile] = []
 
-    repository_template_root = tooling_root / TRANSLATION_REPOSITORY_TEMPLATE_DIR
+    if config.workflow.mode == "github":
+        repository_template_dir = GITHUB_TRANSLATION_REPOSITORY_TEMPLATE_DIR
+        workflow_template_dir = GITHUB_TRANSLATION_ACTIONS_TEMPLATE_DIR
+    else:
+        repository_template_dir = TRANSLATION_REPOSITORY_TEMPLATE_DIR
+        workflow_template_dir = GITHUB_ACTIONS_TEMPLATE_DIR
+
+    repository_template_root = tooling_root / repository_template_dir
     _require_directory(repository_template_root, "translation repository template directory")
     for source in sorted(repository_template_root.rglob("*")):
         if source.is_file():
@@ -69,7 +79,7 @@ def render_translation_repository_scaffold(
                 )
             )
 
-    workflow_template_root = tooling_root / GITHUB_ACTIONS_TEMPLATE_DIR
+    workflow_template_root = tooling_root / workflow_template_dir
     _require_directory(workflow_template_root, "GitHub Actions template directory")
     for source in sorted(workflow_template_root.glob(f"*{WORKFLOW_TEMPLATE_SUFFIX}")):
         target_name = source.name.removesuffix(WORKFLOW_TEMPLATE_SUFFIX) + WORKFLOW_TARGET_SUFFIX
@@ -175,6 +185,18 @@ def _template_values(config: TranslationRepositoryConfig) -> dict[str, str]:
         "TOOLING_REPOSITORY": config.tooling.repository,
         "TOOLING_REF": config.tooling.ref,
         "TRACKING_BRANCH": config.branches.tracking_branch,
+        "SOURCE_REPOSITORY": config.knowledge_model.upstream_repository,
+        "SOURCE_REF": config.knowledge_model.upstream_ref or "UNRELEASED",
+        "SOURCE_VERSION": config.knowledge_model.version,
+        "SOURCE_KM_ID": (
+            f"{config.knowledge_model.organization_id}:{config.knowledge_model.km_id}"
+        ),
+        "SOURCE_KM_PATH": version_paths(config).source_km_path.as_posix(),
+        "SOURCE_PO_PATH": version_paths(config).source_po_path.as_posix(),
+        "TARGET_LANGUAGE": config.translation.target_language,
+        "TRANSLATED_KM_ID": (
+            f"{config.translation.translated_organization_id}:{config.translation.translated_km_id}"
+        ),
     }
 
 

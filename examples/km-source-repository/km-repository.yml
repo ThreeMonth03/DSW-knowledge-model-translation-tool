@@ -1,0 +1,16 @@
+schema_version: 1
+
+knowledge_model:
+  organization_id: {{ORGANIZATION_ID}}
+  km_id: {{KM_ID}}
+  name: {{KM_NAME}}
+  initial_parent_package_id: {{INITIAL_PARENT_PACKAGE_ID}}
+  bundle_path: km/{{KM_ID}}.km
+
+release:
+  manifest_path: release-manifest.yml
+  tag_prefix: v
+
+tooling:
+  repository: {{TOOLING_REPOSITORY}}
+  ref: {{TOOLING_REF}}

@@ -31,6 +31,10 @@ Translation repository behavior is configured in `translation-config.yml`; see
 [`examples/translation-config.yml`][example-translation-config] for the expected
 shape.
 
+Set `workflow.mode: github` and omit `localize` for a Git-authoritative
+repository. In that mode, set `translation.catalog_path` and pin
+`knowledge_model.upstream_ref`.
+
 ## Local Tooling
 
 | Target | Use |
@@ -62,6 +66,68 @@ Set `TRANSLATION_REPO_DIR` before running these targets.
 | `make repo-import-github-translations` | Weblate writer | Import accepted GitHub translation edits, failing on conflicts |
 | `make repo-km-status` | Report files only | Check whether the Registry has a newer KM |
 | `make repo-km-update` | Guarded Git writer | Update to a newer published KM after validation passes |
+
+## GitHub-only source and translation repositories
+
+Create an append-only source KM repository:
+
+```shell
+.venv/bin/dsw-km-init-source-repo \
+  --repo-root /path/to/dsw-root-tw \
+  --tooling-repo . \
+  --organization-id tw \
+  --km-id root-tw \
+  --name "Taiwan DSW Knowledge Model" \
+  --initial-parent-package-id dsw:root:2.7.0 \
+  --tooling-repository ThreeMonth03/dsw-km-translation-tool \
+  --tooling-ref <commit-sha>
+```
+
+Validate an unreleased scaffold or a completed release:
+
+```shell
+.venv/bin/dsw-km-validate-release --repo-root /path/to/dsw-root-tw --allow-unreleased
+.venv/bin/dsw-km-validate-release --repo-root /path/to/dsw-root-tw --tag v0.1.0
+```
+
+After exporting from the DSW KM Editor, generate the manifest instead of
+copying IDs and checksums by hand:
+
+```shell
+.venv/bin/dsw-km-prepare-release --repo-root /path/to/dsw-root-tw
+```
+
+Source-repository CI passes `--github-repository owner/repo`, so every release
+after the first is compared with the previous GitHub Release bundle. Historical
+packages that disappear or change are rejected.
+
+Generate a Weblate-free catalog and rebuild a translation repository:
+
+```shell
+.venv/bin/dsw-km-catalog-from-km \
+  --km /path/to/root-tw.km \
+  --out sources/catalog/zh_Hant/catalog.po \
+  --target-language zh_Hant
+.venv/bin/dsw-km-build-translation-repo --repo-root .
+```
+
+`dsw-km-init-translation-repo --source-km /path/to/root-tw.km` combines these
+steps for a GitHub-only config. Add `--source-po` to seed it from an existing
+catalog.
+
+For normal GitHub-only operation, avoid manual asset downloads. Pin
+`knowledge_model.upstream_ref`, `version`, and `bundle_path`, then run:
+
+```shell
+.venv/bin/dsw-km-sync-github-release --repo-root /path/to/translation-repo
+.venv/bin/dsw-km-sync-github-release \
+  --repo-root /path/to/translation-repo \
+  --check
+```
+
+The writer downloads the versioned `.km` and `.sha256` assets, verifies the KM
+package ID, preserves translations whose UUID/field/source text did not change,
+and rebuilds the repository. The read-only form is the CI dependency check.
 
 Example:
 

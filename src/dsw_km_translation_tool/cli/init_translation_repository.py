@@ -38,6 +38,17 @@ def build_argument_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--registry-token-env", default="DSW_REGISTRY_TOKEN")
     parser.add_argument(
+        "--source-km",
+        help="Local .km input used to hydrate a GitHub-only repository.",
+    )
+    parser.add_argument(
+        "--source-po",
+        help=(
+            "Optional local PO seed for GitHub-only hydration. If omitted, "
+            "an empty catalog is generated from --source-km."
+        ),
+    )
+    parser.add_argument(
         "--scaffold-only",
         action="store_true",
         help="Only write config/docs/workflows; do not download KM/PO inputs.",
@@ -71,6 +82,8 @@ def main() -> None:
             hydrate=not args.scaffold_only,
             overwrite=args.overwrite,
             skip_without_token=args.skip_without_token,
+            source_km_input=Path(args.source_km) if args.source_km else None,
+            source_po_input=Path(args.source_po) if args.source_po else None,
         )
     except TranslationRepositoryBootstrapError as error:
         raise SystemExit(f"Unable to initialize translation repository: {error}") from error

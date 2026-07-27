@@ -1,6 +1,7 @@
 # DSW KM Translation Tool
 
-Python tooling for DSW Knowledge Model translation maintenance.
+Python tooling for DSW Knowledge Model source release and translation
+maintenance.
 
 For zh-Hant production work, the latest translation state is maintained in
 Localize/Weblate. This repository provides automation and visualization around
@@ -11,6 +12,14 @@ that workflow:
 - validate translation repository configuration
 - report Weblate PO health and output alignment
 - update to a newer published source KM after validation passes
+
+GitHub-authoritative repositories are also supported without a Weblate
+component:
+
+- scaffold an append-only source KM release repository
+- generate release manifests and validate immutable package history
+- generate a deterministic PO catalog directly from a KM
+- synchronize a pinned GitHub KM Release and rebuild a Git-managed translation tree
 
 ## Documentation
 
@@ -62,6 +71,10 @@ Local tree commands are available for development, inspection, and repair. By
 default they write to the ignored local workspace `translation/zh_Hant/`.
 Production translation repositories use their own `translation-config.yml` and
 repository layout; see [`examples/translation-config.yml`][example-translation-config].
+
+Use `examples/translation-config-github.yml` when Git, rather than Weblate, is
+the translation authority. `dsw-km-init-source-repo` creates the matching source
+KM repository scaffold.
 
 [example-translation-config]: https://github.com/ThreeMonth03/dsw-km-translation-tool/blob/master/examples/translation-config.yml
 [makefile]: https://github.com/ThreeMonth03/dsw-km-translation-tool/blob/master/Makefile
