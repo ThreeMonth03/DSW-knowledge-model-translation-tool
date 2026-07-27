@@ -1,0 +1,71 @@
+name: GitHub Translation CI
+
+on:
+  pull_request:
+    branches: ["{{TRACKING_BRANCH}}"]
+  push:
+    branches: ["{{TRACKING_BRANCH}}"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TOOLING_REPOSITORY: {{TOOLING_REPOSITORY}}
+  TOOLING_REF: "{{TOOLING_REF}}"
+  SOURCE_REPOSITORY: {{SOURCE_REPOSITORY}}
+  SOURCE_REF: "{{SOURCE_REF}}"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout translation repository
+        uses: actions/checkout@v5
+        with:
+          path: translation-repo
+
+      - name: Checkout translation tooling
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ env.TOOLING_REPOSITORY }}
+          ref: ${{ env.TOOLING_REF }}
+          path: tooling-repo
+
+      - name: Checkout pinned Git source
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ env.SOURCE_REPOSITORY }}
+          ref: ${{ env.SOURCE_REF }}
+          path: source-repo
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install tooling
+        working-directory: tooling-repo
+        run: make install-dev BOOTSTRAP_PYTHON=python
+
+      - name: Validate configuration
+        run: >-
+          tooling-repo/.venv/bin/dsw-km-validate-config
+          --config translation-repo/translation-config.yml
+          --summary "$GITHUB_STEP_SUMMARY"
+
+      - name: Check managed scaffold
+        run: >-
+          tooling-repo/.venv/bin/dsw-km-scaffold check
+          --repo-root translation-repo
+          --tooling-repo tooling-repo
+
+      - name: Synchronize pinned Git source and rebuild
+        run: >-
+          tooling-repo/.venv/bin/dsw-km-sync-git-source
+          --repo-root translation-repo
+          --source-repo source-repo
+
+      - name: Verify reproducible checkout
+        working-directory: translation-repo
+        run: git diff --exit-code

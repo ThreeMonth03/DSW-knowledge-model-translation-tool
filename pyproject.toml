@@ -50,6 +50,7 @@ dsw-km-scaffold = "dsw_km_translation_tool.cli.translation_repository_scaffold:m
 dsw-km-status = "dsw_km_translation_tool.cli.translation_status:main"
 dsw-km-sync-latest-km = "dsw_km_translation_tool.cli.sync_latest_km:main"
 dsw-km-sync-github-release = "dsw_km_translation_tool.cli.sync_github_release:main"
+dsw-km-sync-git-source = "dsw_km_translation_tool.cli.sync_git_source:main"
 dsw-km-sync-localize = "dsw_km_translation_tool.cli.sync_from_localize:main"
 dsw-km-sync-shared-strings = "dsw_km_translation_tool.cli.sync_shared_strings:main"
 dsw-km-tree-to-po = "dsw_km_translation_tool.cli.tree_to_po:main"

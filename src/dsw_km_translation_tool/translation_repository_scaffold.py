@@ -46,6 +46,10 @@ TRANSLATION_REPOSITORY_TEMPLATE_DIR = Path("examples") / "translation-repository
 GITHUB_ACTIONS_TEMPLATE_DIR = Path("examples") / "github-actions"
 GITHUB_TRANSLATION_REPOSITORY_TEMPLATE_DIR = Path("examples") / "translation-repository-github"
 GITHUB_TRANSLATION_ACTIONS_TEMPLATE_DIR = Path("examples") / "github-actions-github"
+GITHUB_GIT_TRANSLATION_REPOSITORY_TEMPLATE_DIR = (
+    Path("examples") / "translation-repository-github-git"
+)
+GITHUB_GIT_TRANSLATION_ACTIONS_TEMPLATE_DIR = Path("examples") / "github-actions-github-git"
 TEMPLATE_TOKEN_RE = re.compile(r"(?<!\$)\{\{(?P<name>[^{}]+)\}\}")
 
 
@@ -60,7 +64,10 @@ def render_translation_repository_scaffold(
     values = _template_values(config)
     rendered: list[RenderedScaffoldFile] = []
 
-    if config.workflow.mode == "github":
+    if config.workflow.mode == "github" and config.workflow.source == "git":
+        repository_template_dir = GITHUB_GIT_TRANSLATION_REPOSITORY_TEMPLATE_DIR
+        workflow_template_dir = GITHUB_GIT_TRANSLATION_ACTIONS_TEMPLATE_DIR
+    elif config.workflow.mode == "github":
         repository_template_dir = GITHUB_TRANSLATION_REPOSITORY_TEMPLATE_DIR
         workflow_template_dir = GITHUB_TRANSLATION_ACTIONS_TEMPLATE_DIR
     else:
@@ -187,6 +194,11 @@ def _template_values(config: TranslationRepositoryConfig) -> dict[str, str]:
         "TRACKING_BRANCH": config.branches.tracking_branch,
         "SOURCE_REPOSITORY": config.knowledge_model.upstream_repository,
         "SOURCE_REF": config.knowledge_model.upstream_ref or "UNRELEASED",
+        "SOURCE_BUNDLE_PATH": (
+            config.knowledge_model.upstream_bundle_path.as_posix()
+            if config.knowledge_model.upstream_bundle_path
+            else ""
+        ),
         "SOURCE_VERSION": config.knowledge_model.version,
         "SOURCE_KM_ID": (
             f"{config.knowledge_model.organization_id}:{config.knowledge_model.km_id}"

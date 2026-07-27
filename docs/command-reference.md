@@ -147,6 +147,22 @@ Generate a Weblate-free catalog and rebuild a translation repository:
 steps for a GitHub-only config. Add `--source-po` to seed it from an existing
 catalog.
 
+For an unreleased source review branch, declare `workflow.source: git`, pin a
+full commit SHA plus `knowledge_model.upstream_bundle_path`, check out that
+commit, and synchronize it without pretending it is a GitHub Release:
+
+```shell
+.venv/bin/dsw-km-sync-git-source \
+  --repo-root /path/to/translation-repo \
+  --source-repo /path/to/pinned-source-checkout \
+  --seed-po /path/to/previous.po
+```
+
+The seed is needed only for the first synchronization. Later runs carry
+translations from the checked-in final PO when the UUID, field, and source text
+are unchanged. The command rejects a source checkout whose HEAD differs from
+the configured commit.
+
 For normal GitHub-only operation, avoid manual asset downloads. Pin
 `knowledge_model.upstream_ref`, `version`, and `bundle_path`, then run:
 

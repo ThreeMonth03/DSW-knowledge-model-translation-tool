@@ -89,6 +89,9 @@ These modules connect the translation repository to the Weblate website:
   checksum sidecars and expected DSW package identity.
 - `github_translation_source.py` checks or synchronizes the pinned release for a
   Git-authoritative translation repository, then rebuilds derived outputs.
+- `git_translation_source.py` checks an exact local Git checkout and
+  synchronizes a configured KM bundle from an unreleased source-review commit.
+  It keeps draft commits distinct from immutable GitHub Release assets.
 - `km_release.py` validates append-only source KM history, release manifests,
   checksums, and Git tag/version alignment.
 - `km_release_history.py` resolves and downloads the previous GitHub Release,
