@@ -90,6 +90,24 @@ Validate an unreleased scaffold or a completed release:
 .venv/bin/dsw-km-validate-release --repo-root /path/to/dsw-root-tw --tag v0.1.0
 ```
 
+Build legal-review candidates and validate a curated mapping against the exact
+source bundle:
+
+```shell
+.venv/bin/dsw-km-build-legal-inventory \
+  --km /path/to/dsw-root-2.7.0.km \
+  --rules /path/to/legal-inventory-rules.yml \
+  --out /path/to/legal-question-inventory.yml
+.venv/bin/dsw-km-validate-legal-mapping \
+  --km /path/to/dsw-root-2.7.0.km \
+  --mapping /path/to/legal-mapping.yml
+```
+
+The inventory is keyword-based triage, not a legal conclusion. The validator
+binds every curated mapping to the package checksum, question UUID, current
+question title, immutable GitHub source location, and declared official
+sources.
+
 After exporting from the DSW KM Editor, generate the manifest instead of
 copying IDs and checksums by hand:
 
