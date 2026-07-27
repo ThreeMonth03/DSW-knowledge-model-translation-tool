@@ -134,7 +134,14 @@ def sync_github_translation_source(
     previous_bytes = source_km_path.read_bytes() if source_km_path.is_file() else None
     changed = previous_bytes != release.payload
     _write_bytes_atomically(source_km_path, release.payload)
-    previous_po = source_po_path if source_po_path.is_file() else None
+    final_po_path = root / paths.final_po_path
+    previous_po = (
+        final_po_path
+        if final_po_path.is_file()
+        else source_po_path
+        if source_po_path.is_file()
+        else None
+    )
     catalog = build_catalog_from_km(
         km_path=source_km_path,
         output_path=source_po_path,
@@ -144,6 +151,7 @@ def sync_github_translation_source(
     build = build_translation_repository(
         repo_root=root,
         config_path=resolved_config,
+        preserve_existing_translations=False,
     )
     return GitHubTranslationSourceResult(
         initialized=True,
