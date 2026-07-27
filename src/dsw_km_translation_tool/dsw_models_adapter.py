@@ -51,6 +51,17 @@ class DswModelsBundleAdapter:
     """Load KM bundles via the official `dsw-models` schema package."""
 
     @classmethod
+    def validate_bundle_root(cls, root: dict[str, Any]) -> None:
+        """Validate an in-memory KM bundle with the official schema.
+
+        Args:
+            root: Parsed KM bundle payload.
+        """
+
+        normalized_root = cls._normalize_edit_event_fields(root)
+        cls._bundle_class().model_validate(normalized_root)
+
+    @classmethod
     def load_bundle_events(
         cls,
         model_path: str,
