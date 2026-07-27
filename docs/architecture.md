@@ -95,6 +95,10 @@ These modules connect the translation repository to the Weblate website:
   then delegates immutable-history validation to `km_release.py`.
 - `km_source_repository_scaffold.py` renders a source KM repository whose
   branches are mutable but whose tags and published KM packages are immutable.
+- `legal_review/` generates keyword-based legal-review candidates and validates
+  curated jurisdiction mappings against exact KM checksums, question UUIDs,
+  source titles, and official-source metadata. It does not decide whether a law
+  applies.
 - `translation_repository_build.py` rebuilds Git-authoritative translation
   outputs without network or Weblate access.
 - [`translation_repository_scaffold.py`][translation-repository-scaffold-py]: renders, checks, and

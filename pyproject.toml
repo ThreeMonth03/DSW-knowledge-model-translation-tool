@@ -30,6 +30,7 @@ dev = [
 [project.scripts]
 dsw-km-catalog-from-km = "dsw_km_translation_tool.cli.catalog_from_km:main"
 dsw-km-build-translation-repo = "dsw_km_translation_tool.cli.build_translation_repository:main"
+dsw-km-build-legal-inventory = "dsw_km_translation_tool.cli.build_legal_question_inventory:main"
 dsw-km-discover-versions = "dsw_km_translation_tool.cli.discover_km_versions:main"
 dsw-km-export-tree = "dsw_km_translation_tool.cli.po_json_tree:main"
 dsw-km-init-translation-repo = "dsw_km_translation_tool.cli.init_translation_repository:main"
@@ -53,6 +54,7 @@ dsw-km-sync-shared-strings = "dsw_km_translation_tool.cli.sync_shared_strings:ma
 dsw-km-tree-to-po = "dsw_km_translation_tool.cli.tree_to_po:main"
 dsw-km-upstream-smoke = "dsw_km_translation_tool.cli.upstream_smoke:main"
 dsw-km-validate-config = "dsw_km_translation_tool.cli.validate_translation_config:main"
+dsw-km-validate-legal-mapping = "dsw_km_translation_tool.cli.validate_legal_mapping:main"
 dsw-km-validate-release = "dsw_km_translation_tool.cli.validate_km_release:main"
 dsw-km-workflow = "dsw_km_translation_tool.cli.translate_workflow:main"
 
