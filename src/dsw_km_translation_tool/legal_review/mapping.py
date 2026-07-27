@@ -20,6 +20,7 @@ class LegalMappingValidationResult:
     package_id: str
     jurisdiction: str
     mapping_count: int
+    content_override_count: int
     legal_source_count: int
     bundle_sha256: str
 
@@ -49,6 +50,12 @@ _REVIEW_STATUSES = {"drafting", "legal_review", "ready", "implemented"}
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _GITHUB_REPOSITORY_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 _GIT_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+_CONTENT_OVERRIDE_FIELDS = {
+    "answer": frozenset({"advice", "label"}),
+    "choice": frozenset({"label"}),
+    "reference": frozenset({"label", "url"}),
+    "resource_page": frozenset({"content", "title"}),
+}
 
 
 def validate_legal_mapping(
@@ -106,6 +113,12 @@ def validate_legal_mapping(
         latest_by_uuid=latest_by_uuid,
         errors=errors,
     )
+    content_overrides = _validate_content_overrides(
+        payload.get("content_overrides", []),
+        legal_source_ids=set(legal_sources),
+        latest_by_uuid=latest_by_uuid,
+        errors=errors,
+    )
 
     if errors:
         raise LegalReviewError("\n".join(f"- {error}" for error in errors))
@@ -113,6 +126,7 @@ def validate_legal_mapping(
         package_id=actual_package_id,
         jurisdiction=jurisdiction,
         mapping_count=len(mappings),
+        content_override_count=len(content_overrides),
         legal_source_count=len(legal_sources),
         bundle_sha256=actual_sha256,
     )
@@ -248,6 +262,148 @@ def _validate_authorities(
                 f"{authority_context}.provisions",
                 errors,
             )
+
+
+def _validate_content_overrides(
+    raw_overrides: Any,
+    *,
+    legal_source_ids: set[str],
+    latest_by_uuid: dict[str, dict[str, Any]],
+    errors: list[str],
+) -> list[dict[str, Any]]:
+    if not isinstance(raw_overrides, list):
+        errors.append("content_overrides must be a list")
+        return []
+
+    overrides: list[dict[str, Any]] = []
+    seen_uuids: set[str] = set()
+    for index, override in enumerate(raw_overrides):
+        context = f"content_overrides[{index}]"
+        if not isinstance(override, dict):
+            errors.append(f"{context} must be a mapping")
+            continue
+
+        source_uuid = _required_string(override, "source_uuid", errors, context)
+        source_type = _required_string(override, "source_type", errors, context)
+        _required_string(override, "topic", errors, context)
+        status = _required_string(override, "status", errors, context)
+        _required_string(override, "rationale", errors, context)
+        if status and status not in _MAPPING_STATUSES:
+            errors.append(
+                f"{context}.status must be one of: {', '.join(sorted(_MAPPING_STATUSES))}"
+            )
+
+        allowed_fields = _CONTENT_OVERRIDE_FIELDS.get(source_type)
+        if source_type and allowed_fields is None:
+            errors.append(
+                f"{context}.source_type must be one of: "
+                f"{', '.join(sorted(_CONTENT_OVERRIDE_FIELDS))}"
+            )
+            allowed_fields = frozenset()
+
+        source_fields = _required_mapping(override, "source_fields", errors, context)
+        proposed_fields = _required_mapping(override, "proposed_fields", errors, context)
+        _validate_override_fields(
+            fields=source_fields,
+            allowed_fields=allowed_fields,
+            context=f"{context}.source_fields",
+            errors=errors,
+        )
+        _validate_override_fields(
+            fields=proposed_fields,
+            allowed_fields=allowed_fields,
+            context=f"{context}.proposed_fields",
+            errors=errors,
+        )
+        if source_fields and proposed_fields and source_fields.keys() != proposed_fields.keys():
+            errors.append(
+                f"{context}.source_fields and proposed_fields must contain the same fields"
+            )
+
+        if source_uuid:
+            if source_uuid in seen_uuids:
+                errors.append(f"duplicate content override source UUID: {source_uuid}")
+            seen_uuids.add(source_uuid)
+            _validate_content_binding(
+                source_uuid=source_uuid,
+                source_type=source_type,
+                source_fields=source_fields,
+                latest_by_uuid=latest_by_uuid,
+                context=context,
+                errors=errors,
+            )
+
+        _validate_authorities(
+            override.get("authorities"),
+            legal_source_ids=legal_source_ids,
+            context=context,
+            errors=errors,
+        )
+        overrides.append(override)
+    return overrides
+
+
+def _validate_override_fields(
+    *,
+    fields: dict[str, Any],
+    allowed_fields: frozenset[str],
+    context: str,
+    errors: list[str],
+) -> None:
+    if not fields:
+        errors.append(f"{context} must not be empty")
+        return
+    for field, value in fields.items():
+        if field not in allowed_fields:
+            errors.append(
+                f"{context}.{field} is unsupported; allowed fields: "
+                f"{', '.join(sorted(allowed_fields))}"
+            )
+        if not isinstance(value, str) or not value.strip():
+            errors.append(f"{context}.{field} must be a non-empty string")
+
+
+def _validate_content_binding(
+    *,
+    source_uuid: str,
+    source_type: str,
+    source_fields: dict[str, Any],
+    latest_by_uuid: dict[str, dict[str, Any]],
+    context: str,
+    errors: list[str],
+) -> None:
+    entity = latest_by_uuid.get(source_uuid)
+    if entity is None:
+        errors.append(f"{context}.source_uuid does not exist in the KM: {source_uuid}")
+        return
+    content = entity.get("content", {})
+    event_type = str(content.get("eventType") or "")
+    actual_type = _content_entity_type(event_type)
+    if actual_type != source_type:
+        errors.append(
+            f"{context}.source_type is {source_type!r}, but {source_uuid} is "
+            f"{actual_type or 'an unsupported entity'} ({event_type or 'unknown event type'})"
+        )
+        return
+    for field, expected in source_fields.items():
+        actual = content.get(field)
+        if actual != expected:
+            errors.append(
+                f"{context}.source_fields.{field} is stale for {source_uuid}: "
+                f"expected {expected!r}, found {actual!r}"
+            )
+
+
+def _content_entity_type(event_type: str) -> str:
+    match = re.fullmatch(r"(?:Add|Edit)(Answer|Choice|Reference|ResourcePage)Event", event_type)
+    if match is None:
+        return ""
+    return {
+        "Answer": "answer",
+        "Choice": "choice",
+        "Reference": "reference",
+        "ResourcePage": "resource_page",
+    }[match.group(1)]
 
 
 def _validate_question_binding(

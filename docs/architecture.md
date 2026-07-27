@@ -100,9 +100,9 @@ These modules connect the translation repository to the Weblate website:
   branches are mutable but whose tags and published KM packages are immutable.
 - `legal_review/` generates keyword-based legal-review candidates, validates
   curated jurisdiction mappings against exact KM checksums, question UUIDs,
-  source titles, and official-source metadata, and builds deterministic child
-  packages for reviewed text-only rewrites. It does not decide whether a law
-  applies or perform structural KM edits.
+  source titles, inherited text fields, and official-source metadata, and builds
+  deterministic child packages for reviewed text-only rewrites. It does not
+  decide whether a law applies or perform structural KM edits.
 - `translation_repository_build.py` rebuilds Git-authoritative translation
   outputs without network or Weblate access.
 - [`translation_repository_scaffold.py`][translation-repository-scaffold-py]: renders, checks, and
