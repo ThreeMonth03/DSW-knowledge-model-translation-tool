@@ -31,6 +31,7 @@ def main() -> None:
     print(f"Package: {result.package_id}")
     print(f"Jurisdiction: {result.jurisdiction}")
     print(f"Mappings: {result.mapping_count}")
+    print(f"Content overrides: {result.content_override_count}")
     print(f"Legal sources: {result.legal_source_count}")
     print(f"SHA-256: {result.bundle_sha256}")
 

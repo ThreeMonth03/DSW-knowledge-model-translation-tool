@@ -118,9 +118,11 @@ The inventory is keyword-based triage, not a legal conclusion. The validator
 binds every curated mapping to the package checksum, question UUID, current
 question title, immutable GitHub source location, and declared official
 sources. The draft builder preserves the complete parent history and appends one
-child package containing deterministic title and guidance edit events. It
-supports only `rewrite` and `replace`; structural actions must be authored and
-reviewed in the DSW KM Editor.
+child package containing deterministic title and guidance edit events. Optional
+`content_overrides` bind inherited answer, choice, URL-reference, or
+resource-page fields to their exact source text before applying deterministic
+text replacements. Question mappings support only `rewrite` and `replace`;
+structural actions must be authored and reviewed in the DSW KM Editor.
 
 After exporting from the DSW KM Editor, generate the manifest instead of
 copying IDs and checksums by hand:

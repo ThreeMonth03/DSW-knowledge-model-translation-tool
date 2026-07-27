@@ -57,7 +57,9 @@ def build_legal_draft(
 
     The input package history is preserved byte-for-byte at the JSON object
     level. Each ``rewrite`` or ``replace`` mapping becomes one question edit
-    event that changes only the question title and guidance text.
+    event that changes only the question title and guidance text. Optional
+    ``content_overrides`` add exact, source-bound edits for inherited answer,
+    choice, URL-reference, or resource-page text.
     """
 
     validate_legal_mapping(mapping_path=mapping_path, km_path=km_path)
@@ -86,12 +88,19 @@ def build_legal_draft(
         raise LegalReviewError(f"KM bundle already contains package {package_id}")
 
     as_of = _mapping_date(mapping.get("as_of"))
-    events = _build_question_events(
+    question_events = _build_question_events(
         mapping=mapping,
         latest_by_uuid=latest_by_uuid,
         package_id=package_id,
         as_of=as_of,
     )
+    content_override_events = _build_content_override_events(
+        mapping=mapping,
+        latest_by_uuid=latest_by_uuid,
+        package_id=package_id,
+        as_of=as_of,
+    )
+    events = question_events + content_override_events
     child_package = {
         "createdAt": _format_timestamp(as_of),
         "description": description,
@@ -197,6 +206,49 @@ def _build_question_events(
     return events
 
 
+def _build_content_override_events(
+    *,
+    mapping: dict[str, Any],
+    latest_by_uuid: dict[str, dict[str, Any]],
+    package_id: str,
+    as_of: date,
+) -> list[dict[str, Any]]:
+    raw_overrides = mapping.get("content_overrides", [])
+    if not isinstance(raw_overrides, list):
+        raise LegalReviewError("legal mapping content_overrides must be a list")
+
+    events: list[dict[str, Any]] = []
+    for item in sorted(raw_overrides, key=lambda candidate: str(candidate.get("source_uuid", ""))):
+        entity_uuid = str(item["source_uuid"])
+        entity = latest_by_uuid[entity_uuid]
+        source_type = str(item["source_type"])
+        proposed_fields = {
+            str(field): str(value) for field, value in item["proposed_fields"].items()
+        }
+        event_content = _edit_content_override(
+            source_type=source_type,
+            source_content=entity["content"],
+            proposed_fields=proposed_fields,
+        )
+        event_name = "\n".join(
+            (
+                package_id,
+                entity_uuid,
+                json.dumps(proposed_fields, ensure_ascii=False, sort_keys=True),
+            )
+        )
+        events.append(
+            {
+                "content": event_content,
+                "createdAt": _format_timestamp(as_of),
+                "entityUuid": entity_uuid,
+                "parentUuid": str(entity["parentUuid"]),
+                "uuid": str(uuid5(NAMESPACE_URL, event_name)),
+            }
+        )
+    return events
+
+
 def _edit_question_content(
     *,
     question_type: str,
@@ -220,6 +272,52 @@ def _edit_question_content(
     }
     for field in child_fields:
         content[field] = {"changed": False}
+    return content
+
+
+def _edit_content_override(
+    *,
+    source_type: str,
+    source_content: dict[str, Any],
+    proposed_fields: dict[str, str],
+) -> dict[str, Any]:
+    if source_type == "answer":
+        fields = ("advice", "label")
+        content = {
+            "annotations": {"changed": False},
+            "eventType": "EditAnswerEvent",
+            "followUpUuids": {"changed": False},
+            "metricMeasures": {"changed": False},
+        }
+    elif source_type == "choice":
+        fields = ("label",)
+        content = {
+            "annotations": {"changed": False},
+            "eventType": "EditChoiceEvent",
+        }
+    elif source_type == "reference":
+        if source_content.get("referenceType") != "URLReference":
+            raise LegalReviewError("Legal content overrides currently support only URL references")
+        fields = ("label", "url")
+        content = {
+            "annotations": {"changed": False},
+            "eventType": "EditReferenceEvent",
+            "referenceType": "URLReference",
+        }
+    elif source_type == "resource_page":
+        fields = ("content", "title")
+        content = {
+            "annotations": {"changed": False},
+            "eventType": "EditResourcePageEvent",
+        }
+    else:
+        raise LegalReviewError(f"Unsupported legal content override type: {source_type!r}")
+
+    for field in fields:
+        if field in proposed_fields:
+            content[field] = {"changed": True, "value": proposed_fields[field]}
+        else:
+            content[field] = {"changed": False}
     return content
 
 

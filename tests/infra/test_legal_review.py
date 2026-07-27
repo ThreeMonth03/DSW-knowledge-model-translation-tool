@@ -19,6 +19,7 @@ from dsw_km_translation_tool.legal_review import (
 
 PERSONAL_DATA_QUESTION_UUID = "49c009cb-a38c-4836-9780-8a8b3dd1cbac"
 PERSONAL_DATA_QUESTION_TITLE = 'Will you collect any data connected to a person, "personal data"?'
+GDPR_CHOICE_UUID = "caac09f2-be5c-4ba4-82dc-7f0ee33ab67d"
 
 
 def test_legal_inventory_is_deterministic_and_traceable(
@@ -96,6 +97,7 @@ def test_legal_mapping_binds_sources_and_questions(
     assert result.package_id == "dsw:root:2.7.0"
     assert result.jurisdiction == "TW"
     assert result.mapping_count == 1
+    assert result.content_override_count == 1
     assert result.legal_source_count == 1
 
 
@@ -142,6 +144,25 @@ def test_legal_mapping_rejects_wrong_bundle_checksum(
         )
 
 
+def test_legal_mapping_rejects_stale_content_override(
+    workspace: Path,
+    model_path: Path,
+) -> None:
+    payload = _valid_mapping_payload(model_path)
+    payload["content_overrides"][0]["source_fields"]["label"] = "Stale label"
+    mapping_path = workspace / "legal-mapping.yml"
+    mapping_path.write_text(
+        yaml.safe_dump(payload, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(LegalReviewError, match="source_fields.label is stale"):
+        validate_legal_mapping(
+            mapping_path=mapping_path,
+            km_path=model_path,
+        )
+
+
 def test_legal_draft_appends_valid_deterministic_child_package(
     workspace: Path,
     model_path: Path,
@@ -174,19 +195,22 @@ def test_legal_draft_appends_valid_deterministic_child_package(
     assert draft["packages"][:-1] == source["packages"]
     assert result.package_id == "tw:root-tw:0.1.0"
     assert result.parent_package_id == "dsw:root:2.7.0"
-    assert result.event_count == 1
+    assert result.event_count == 2
     assert draft["id"] == result.package_id
     child = draft["packages"][-1]
     assert child["forkOfPackageId"] == result.parent_package_id
     assert child["previousPackageId"] is None
     assert child["id"] == result.package_id
-    assert len(child["events"]) == 1
+    assert len(child["events"]) == 2
 
     latest_by_uuid, model_info = KnowledgeModelService.load_model(str(first))
     question = latest_by_uuid[PERSONAL_DATA_QUESTION_UUID]["content"]
     assert model_info.id == result.package_id
     assert question["title"] == "Will you collect personal data?"
     assert question["text"] == "Apply the Taiwan statutory definition."
+    assert latest_by_uuid[GDPR_CHOICE_UUID]["content"]["label"] == (
+        "Taiwan Personal Data Protection Act"
+    )
 
 
 def test_legal_draft_rejects_structural_mapping_actions(
@@ -259,6 +283,27 @@ def _valid_mapping_payload(model_path: Path) -> dict[str, object]:
                 "proposed": {
                     "title_en": "Will you collect personal data?",
                     "guidance_en": "Apply the Taiwan statutory definition.",
+                },
+            }
+        ],
+        "content_overrides": [
+            {
+                "source_uuid": GDPR_CHOICE_UUID,
+                "source_type": "choice",
+                "topic": "personal-data",
+                "status": "proposed",
+                "rationale": "Replace an inherited GDPR choice label.",
+                "authorities": [
+                    {
+                        "source_id": "pdpa",
+                        "provisions": ["Article 2"],
+                    }
+                ],
+                "source_fields": {
+                    "label": "GDPR",
+                },
+                "proposed_fields": {
+                    "label": "Taiwan Personal Data Protection Act",
                 },
             }
         ],
