@@ -6,6 +6,7 @@ PYTHON ?= $(VENV_PYTHON)
 PIP := $(PYTHON) -m pip
 DSW_KM_DISCOVER_VERSIONS := $(VENV_BIN)/dsw-km-discover-versions
 DSW_KM_BUILD_TRANSLATION_REPO := $(VENV_BIN)/dsw-km-build-translation-repo
+DSW_KM_BUILD_LEGAL_DRAFT := $(VENV_BIN)/dsw-km-build-legal-draft
 DSW_KM_CATALOG_FROM_KM := $(VENV_BIN)/dsw-km-catalog-from-km
 DSW_KM_EXPORT_TREE := $(VENV_BIN)/dsw-km-export-tree
 DSW_KM_INIT_SOURCE_REPO := $(VENV_BIN)/dsw-km-init-source-repo

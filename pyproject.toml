@@ -29,6 +29,7 @@ dev = [
 
 [project.scripts]
 dsw-km-catalog-from-km = "dsw_km_translation_tool.cli.catalog_from_km:main"
+dsw-km-build-legal-draft = "dsw_km_translation_tool.cli.build_legal_draft:main"
 dsw-km-build-translation-repo = "dsw_km_translation_tool.cli.build_translation_repository:main"
 dsw-km-build-legal-inventory = "dsw_km_translation_tool.cli.build_legal_question_inventory:main"
 dsw-km-discover-versions = "dsw_km_translation_tool.cli.discover_km_versions:main"

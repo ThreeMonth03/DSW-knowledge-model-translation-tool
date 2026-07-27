@@ -101,12 +101,26 @@ source bundle:
 .venv/bin/dsw-km-validate-legal-mapping \
   --km /path/to/dsw-root-2.7.0.km \
   --mapping /path/to/legal-mapping.yml
+.venv/bin/dsw-km-build-legal-draft \
+  --km /path/to/dsw-root-2.7.0.km \
+  --mapping /path/to/legal-mapping.yml \
+  --output /path/to/root-tw.km \
+  --organization-id tw \
+  --km-id root-tw \
+  --version 0.1.0 \
+  --name "Taiwan DSW Knowledge Model" \
+  --description "Taiwan-focused research data management knowledge model." \
+  --license Apache-2.0 \
+  --readme-file /path/to/package-readme.md
 ```
 
 The inventory is keyword-based triage, not a legal conclusion. The validator
 binds every curated mapping to the package checksum, question UUID, current
 question title, immutable GitHub source location, and declared official
-sources.
+sources. The draft builder preserves the complete parent history and appends one
+child package containing deterministic title and guidance edit events. It
+supports only `rewrite` and `replace`; structural actions must be authored and
+reviewed in the DSW KM Editor.
 
 After exporting from the DSW KM Editor, generate the manifest instead of
 copying IDs and checksums by hand:

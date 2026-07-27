@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,7 @@ import yaml
 from dsw_km_translation_tool.knowledge_model_service import KnowledgeModelService
 from dsw_km_translation_tool.legal_review import (
     LegalReviewError,
+    build_legal_draft,
     build_legal_question_inventory,
     validate_legal_mapping,
 )
@@ -137,6 +139,81 @@ def test_legal_mapping_rejects_wrong_bundle_checksum(
         validate_legal_mapping(
             mapping_path=mapping_path,
             km_path=model_path,
+        )
+
+
+def test_legal_draft_appends_valid_deterministic_child_package(
+    workspace: Path,
+    model_path: Path,
+) -> None:
+    mapping_path = workspace / "legal-mapping.yml"
+    mapping_path.write_text(
+        yaml.safe_dump(_valid_mapping_payload(model_path), sort_keys=False),
+        encoding="utf-8",
+    )
+    first = workspace / "first.km"
+    second = workspace / "second.km"
+    options = {
+        "km_path": model_path,
+        "mapping_path": mapping_path,
+        "organization_id": "tw",
+        "km_id": "root-tw",
+        "version": "0.1.0",
+        "name": "Taiwan DSW Knowledge Model",
+        "description": "Taiwan legal meeting draft.",
+        "license_id": "Apache-2.0",
+        "readme": "# Taiwan DSW Knowledge Model\n",
+    }
+
+    result = build_legal_draft(output_path=first, **options)
+    build_legal_draft(output_path=second, **options)
+
+    assert first.read_bytes() == second.read_bytes()
+    source = json.loads(model_path.read_text(encoding="utf-8"))
+    draft = json.loads(first.read_text(encoding="utf-8"))
+    assert draft["packages"][:-1] == source["packages"]
+    assert result.package_id == "tw:root-tw:0.1.0"
+    assert result.parent_package_id == "dsw:root:2.7.0"
+    assert result.event_count == 1
+    assert draft["id"] == result.package_id
+    child = draft["packages"][-1]
+    assert child["forkOfPackageId"] == result.parent_package_id
+    assert child["previousPackageId"] is None
+    assert child["id"] == result.package_id
+    assert len(child["events"]) == 1
+
+    latest_by_uuid, model_info = KnowledgeModelService.load_model(str(first))
+    question = latest_by_uuid[PERSONAL_DATA_QUESTION_UUID]["content"]
+    assert model_info.id == result.package_id
+    assert question["title"] == "Will you collect personal data?"
+    assert question["text"] == "Apply the Taiwan statutory definition."
+
+
+def test_legal_draft_rejects_structural_mapping_actions(
+    workspace: Path,
+    model_path: Path,
+) -> None:
+    payload = _valid_mapping_payload(model_path)
+    payload["mappings"][0]["action"] = "remove"
+    payload["mappings"][0].pop("proposed")
+    mapping_path = workspace / "legal-mapping.yml"
+    mapping_path.write_text(
+        yaml.safe_dump(payload, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(LegalReviewError, match="legal drafts support only"):
+        build_legal_draft(
+            km_path=model_path,
+            mapping_path=mapping_path,
+            output_path=workspace / "draft.km",
+            organization_id="tw",
+            km_id="root-tw",
+            version="0.1.0",
+            name="Taiwan DSW Knowledge Model",
+            description="Taiwan legal meeting draft.",
+            license_id="Apache-2.0",
+            readme="# Taiwan DSW Knowledge Model\n",
         )
 
 
