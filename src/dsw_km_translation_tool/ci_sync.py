@@ -15,6 +15,7 @@ from .command import (
     tooling_virtualenv_python_path,
 )
 from .constants import SHARED_BLOCK_CONTEXT_FILENAME, TRANSLATION_FILENAME
+from .data_models import KnowledgeModelPackageIdentityMapping
 from .layout import (
     DEFAULT_MODEL_PATH,
     DEFAULT_PO_PATH,
@@ -65,6 +66,8 @@ class CiSyncCommitConfig:
         output_name: Optional display name for the generated KM.
         supplemental_translations_path: Optional directory of translator-facing
             forms for KM fields omitted from the upstream PO.
+        package_identity_mappings: Explicit translated identities for
+            additional package coordinates in mixed-lineage bundles.
         restore_source_ref: Git ref used when restoring a malformed
             translation source file during CI recovery.
     """
@@ -83,6 +86,7 @@ class CiSyncCommitConfig:
     output_km_id: str | None = None
     output_name: str | None = None
     supplemental_translations_path: Path | None = None
+    package_identity_mappings: tuple[KnowledgeModelPackageIdentityMapping, ...] = ()
     restore_source_ref: str = "origin/master"
 
     @property
@@ -478,6 +482,17 @@ def _build_optional_po_to_km_args(config: CiSyncCommitConfig) -> list[str]:
             [
                 "--supplemental-translations-dir",
                 str(config.supplemental_translations_dir),
+            ]
+        )
+    for mapping in config.package_identity_mappings:
+        args.extend(
+            [
+                "--package-identity-mapping",
+                mapping.source_organization_id,
+                mapping.source_km_id,
+                mapping.translated_organization_id,
+                mapping.translated_km_id,
+                mapping.translated_name,
             ]
         )
     return args

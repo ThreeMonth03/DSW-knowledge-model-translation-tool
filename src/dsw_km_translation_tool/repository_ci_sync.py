@@ -84,6 +84,7 @@ def build_repository_ci_sync_config(
         output_km_id=output_km_id or repository_config.translation.translated_km_id,
         output_name=output_name or repository_config.translation.translated_name,
         supplemental_translations_path=(repository_config.translation.supplemental_directory),
+        package_identity_mappings=(repository_config.translation.package_identity_mappings),
         restore_source_ref=restore_source_ref or f"origin/{branch}",
     )
 

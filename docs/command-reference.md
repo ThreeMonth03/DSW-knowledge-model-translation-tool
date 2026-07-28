@@ -170,6 +170,31 @@ translations from the checked-in final PO when the UUID, field, and source text
 are unchanged. The command rejects a source checkout whose HEAD differs from
 the configured commit.
 
+If the source bundle contains packages from more than one KM coordinate, map
+each non-root coordinate explicitly. This preserves the fork boundary instead
+of flattening independent version lines:
+
+```yaml
+translation:
+  translated_organization_id: tw
+  translated_km_id: root-tw-zh-hant
+  translated_name: Taiwan DSW Knowledge Model (zh-Hant)
+  package_identity_mappings:
+    - source_organization_id: dsw
+      source_km_id: root
+      translated_organization_id: tw
+      translated_km_id: root-tw-base-zh-hant
+      translated_name: Taiwan KM translated upstream base (zh-Hant)
+```
+
+The root `tw:root-tw` coordinate uses the normal `translated_*` fields. The
+mapping keeps translated ancestors under a distinct Taiwan-owned base, so DSW
+compares project updates only against the independent
+`tw:root-tw-zh-hant` version line. Use an existing translated package
+coordinate only when the complete package history is identical; otherwise use
+a repository-owned base coordinate to avoid immutable package-ID collisions.
+Missing mappings and duplicate translated targets fail the build.
+
 For normal GitHub-only operation, avoid manual asset downloads. Pin
 `knowledge_model.upstream_ref`, `version`, and `bundle_path`, then run:
 
@@ -230,6 +255,11 @@ Run `make help-all` if you need lower-level helpers such as `tree-to-po`,
 Markdown forms representing source KM fields that do not exist in the upstream
 PO. Production repositories should set `translation.supplemental_directory` in
 `translation-config.yml` instead of passing this flag directly.
+
+For low-level mixed-lineage debugging, repeat
+`--package-identity-mapping SOURCE_ORG SOURCE_KM TRANSLATED_ORG TRANSLATED_KM
+TRANSLATED_NAME`. Production repositories should declare
+`translation.package_identity_mappings` instead.
 
 ## Direct CLI Use
 

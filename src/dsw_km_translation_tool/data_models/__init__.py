@@ -1,6 +1,6 @@
 """Structured data-model exports grouped by translation-tooling concern."""
 
-from .knowledge_model import ModelInfo, TreeNode
+from .knowledge_model import KnowledgeModelPackageIdentityMapping, ModelInfo, TreeNode
 from .po import (
     PoBlock,
     PoDiffReviewResult,
@@ -26,6 +26,7 @@ from .workflow import KmBuildResult, PoBuildResult, WorkflowContext
 
 __all__ = [
     "ModelInfo",
+    "KnowledgeModelPackageIdentityMapping",
     "KmBuildResult",
     "OutlineBuildResult",
     "PoBlock",

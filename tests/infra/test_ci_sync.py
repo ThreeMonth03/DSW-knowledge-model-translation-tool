@@ -7,6 +7,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from dsw_km_translation_tool.ci_sync import CiSyncCommitConfig, run_ci_sync_commit
+from dsw_km_translation_tool.data_models import KnowledgeModelPackageIdentityMapping
 
 
 class RecordingRunner:
@@ -278,6 +279,15 @@ def test_ci_sync_commit_can_use_host_repo_source_snapshots(workspace) -> None:
         output_organization_id="dsw",
         output_km_id="root-zh-hant",
         output_name="Common DSW Knowledge Model (zh-Hant)",
+        package_identity_mappings=(
+            KnowledgeModelPackageIdentityMapping(
+                source_organization_id="source",
+                source_km_id="parent",
+                translated_organization_id="translated",
+                translated_km_id="parent-zh-hant",
+                translated_name="Parent Knowledge Model (zh-Hant)",
+            ),
+        ),
     )
     runner = RecordingRunner()
 
@@ -294,6 +304,14 @@ def test_ci_sync_commit_can_use_host_repo_source_snapshots(workspace) -> None:
     assert "root-zh-hant" in po_to_km_command
     assert "--output-name" in po_to_km_command
     assert "Common DSW Knowledge Model (zh-Hant)" in po_to_km_command
+    mapping_flag = po_to_km_command.index("--package-identity-mapping")
+    assert po_to_km_command[mapping_flag + 1 : mapping_flag + 6] == [
+        "source",
+        "parent",
+        "translated",
+        "parent-zh-hant",
+        "Parent Knowledge Model (zh-Hant)",
+    ]
 
 
 def test_ci_sync_commit_can_restore_from_tracking_branch(workspace) -> None:

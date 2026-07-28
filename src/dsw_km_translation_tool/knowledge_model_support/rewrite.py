@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from ..data_models import PoEntry
+from ..data_models import KnowledgeModelPackageIdentityMapping, PoEntry
 from .event_ordering import event_type_priority
 
 
@@ -45,6 +45,7 @@ class KnowledgeModelBundleWriter:
         output_km_id: str | None = None,
         output_name: str | None = None,
         target_lang: str | None = None,
+        package_identity_mappings: tuple[KnowledgeModelPackageIdentityMapping, ...] = (),
     ) -> tuple[str, dict[tuple[str, str], str]]:
         """Apply translated PO strings to the defining KM events.
 
@@ -60,6 +61,8 @@ class KnowledgeModelBundleWriter:
                 language.
             target_lang: Target language used to derive default translated
                 package identity values.
+            package_identity_mappings: Explicit translations for additional
+                package coordinates in a mixed-lineage bundle.
 
         Returns:
             Tuple of serialized KM JSON text and applied translation mapping.
@@ -76,6 +79,7 @@ class KnowledgeModelBundleWriter:
             output_km_id=output_km_id,
             output_name=output_name,
             target_lang=target_lang,
+            package_identity_mappings=package_identity_mappings,
         )
         translations_by_key = self.build_translation_map(po_entries)
         if translations_by_key:
@@ -108,6 +112,7 @@ class KnowledgeModelBundleWriter:
         output_km_id: str | None = None,
         output_name: str | None = None,
         target_lang: str | None = None,
+        package_identity_mappings: tuple[KnowledgeModelPackageIdentityMapping, ...] = (),
     ) -> None:
         """Rewrite package identity so translated KMs import as separate KMs.
 
@@ -117,6 +122,8 @@ class KnowledgeModelBundleWriter:
             output_km_id: Optional replacement KM ID.
             output_name: Optional replacement display name.
             target_lang: Target language used for default suffixes.
+            package_identity_mappings: Explicit translations for additional
+                package coordinates in a mixed-lineage bundle.
         """
 
         original_organization_id = str(bundle_root.get("organizationId") or "")
@@ -133,10 +140,21 @@ class KnowledgeModelBundleWriter:
             target_lang=target_lang,
         )
 
+        primary_mapping = KnowledgeModelPackageIdentityMapping(
+            source_organization_id=original_organization_id,
+            source_km_id=original_km_id,
+            translated_organization_id=new_organization_id,
+            translated_km_id=new_km_id,
+            translated_name=new_name,
+        )
+        mappings_by_source = self.build_identity_mapping_index(
+            bundle_root=bundle_root,
+            primary_mapping=primary_mapping,
+            package_identity_mappings=package_identity_mappings,
+        )
         id_map = self.build_package_id_map(
             bundle_root=bundle_root,
-            new_organization_id=new_organization_id,
-            new_km_id=new_km_id,
+            mappings_by_source=mappings_by_source,
         )
 
         bundle_root["organizationId"] = new_organization_id
@@ -153,9 +171,11 @@ class KnowledgeModelBundleWriter:
             if not isinstance(package, dict):
                 continue
             original_package_id = str(package.get("id") or "")
-            package["organizationId"] = new_organization_id
-            package["kmId"] = new_km_id
-            package["name"] = new_name
+            source_coordinate = self.package_coordinate(package)
+            mapping = mappings_by_source[source_coordinate]
+            package["organizationId"] = mapping.translated_organization_id
+            package["kmId"] = mapping.translated_km_id
+            package["name"] = mapping.translated_name
             if original_package_id in id_map:
                 package["id"] = id_map[original_package_id]
 
@@ -168,18 +188,70 @@ class KnowledgeModelBundleWriter:
                 if reference in id_map:
                     package[reference_key] = id_map[reference]
 
+    def build_identity_mapping_index(
+        self,
+        bundle_root: dict[str, Any],
+        primary_mapping: KnowledgeModelPackageIdentityMapping,
+        package_identity_mappings: tuple[KnowledgeModelPackageIdentityMapping, ...],
+    ) -> dict[tuple[str, str], KnowledgeModelPackageIdentityMapping]:
+        """Validate and index identity mappings for every package coordinate.
+
+        Args:
+            bundle_root: Parsed KM bundle JSON.
+            primary_mapping: Implicit mapping for the bundle's root KM.
+            package_identity_mappings: Explicit mappings for ancestor or fork
+                package coordinates.
+
+        Returns:
+            Mappings keyed by source package coordinate.
+
+        Raises:
+            ValueError: If a mixed lineage has missing, duplicate, or
+                many-to-one identity mappings.
+        """
+
+        mappings_by_source = {primary_mapping.source_coordinate: primary_mapping}
+        translated_coordinates = {primary_mapping.translated_coordinate}
+        for mapping in package_identity_mappings:
+            if mapping.source_coordinate in mappings_by_source:
+                source = ":".join(mapping.source_coordinate)
+                raise ValueError(f"Duplicate package identity mapping for {source}")
+            if mapping.translated_coordinate in translated_coordinates:
+                target = ":".join(mapping.translated_coordinate)
+                raise ValueError(
+                    f"Package identity mappings must not collapse multiple lineages into {target}"
+                )
+            mappings_by_source[mapping.source_coordinate] = mapping
+            translated_coordinates.add(mapping.translated_coordinate)
+
+        source_coordinates = {
+            self.package_coordinate(package)
+            for package in bundle_root.get("packages", ())
+            if isinstance(package, dict)
+        }
+        missing_coordinates = sorted(source_coordinates - mappings_by_source.keys())
+        if missing_coordinates:
+            missing = ", ".join(":".join(coordinate) for coordinate in missing_coordinates)
+            raise ValueError(
+                "Mixed-lineage KM bundles require explicit translated package "
+                f"identity mappings; missing: {missing}"
+            )
+        unused_coordinates = sorted(mappings_by_source.keys() - source_coordinates)
+        if unused_coordinates:
+            unused = ", ".join(":".join(coordinate) for coordinate in unused_coordinates)
+            raise ValueError(f"Package identity mappings do not match bundle packages: {unused}")
+        return mappings_by_source
+
     def build_package_id_map(
         self,
         bundle_root: dict[str, Any],
-        new_organization_id: str,
-        new_km_id: str,
+        mappings_by_source: dict[tuple[str, str], KnowledgeModelPackageIdentityMapping],
     ) -> dict[str, str]:
         """Build old-to-new package ID mapping for one KM bundle.
 
         Args:
             bundle_root: Parsed KM bundle JSON.
-            new_organization_id: Replacement organization ID.
-            new_km_id: Replacement KM ID.
+            mappings_by_source: Validated mappings keyed by source coordinate.
 
         Returns:
             Mapping from source package IDs to translated package IDs.
@@ -193,12 +265,23 @@ class KnowledgeModelBundleWriter:
             version = str(package.get("version") or "")
             if not package_id or not version:
                 continue
+            mapping = mappings_by_source[self.package_coordinate(package)]
             id_map[package_id] = self.format_package_id(
-                organization_id=new_organization_id,
-                km_id=new_km_id,
+                organization_id=mapping.translated_organization_id,
+                km_id=mapping.translated_km_id,
                 version=version,
             )
         return id_map
+
+    @staticmethod
+    def package_coordinate(package: dict[str, Any]) -> tuple[str, str]:
+        """Return and validate one package's source coordinate."""
+
+        organization_id = str(package.get("organizationId") or "")
+        km_id = str(package.get("kmId") or "")
+        if not organization_id or not km_id:
+            raise ValueError("KM bundle packages must define organizationId and kmId")
+        return organization_id, km_id
 
     @staticmethod
     def build_translated_km_id(original_km_id: str, language_slug: str) -> str:

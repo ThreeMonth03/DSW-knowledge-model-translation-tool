@@ -212,7 +212,38 @@ def _template_values(config: TranslationRepositoryConfig) -> dict[str, str]:
         "TRANSLATED_ASSET_STEM": (
             f"{config.translation.translated_organization_id}-{config.translation.translated_km_id}"
         ),
+        "PACKAGE_IDENTITY_GUIDANCE": _package_identity_guidance(config),
     }
+
+
+def _package_identity_guidance(config: TranslationRepositoryConfig) -> str:
+    mappings = config.translation.package_identity_mappings
+    if not mappings:
+        return ""
+
+    lines = [
+        "The translated bundle preserves mixed-lineage package boundaries:",
+        "",
+    ]
+    for mapping in mappings:
+        source = ":".join(mapping.source_coordinate)
+        target = ":".join(mapping.translated_coordinate)
+        lines.append(f"- `{source}` → `{target}`")
+    translated_root = (
+        f"{config.translation.translated_organization_id}:{config.translation.translated_km_id}"
+    )
+    lines.extend(
+        [
+            "",
+            f"The root package uses `{translated_root}`. Keep every target coordinate",
+            "distinct so DSW calculates project updates only within its own version",
+            "line. Use an existing translated coordinate only when its complete package",
+            "history is identical; otherwise use a repository-owned base coordinate to",
+            "avoid immutable package-ID collisions.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def _file_matches(path: Path, expected: str) -> bool:

@@ -105,6 +105,10 @@ These modules connect the translation repository to the Weblate website:
   decide whether a law applies or perform structural KM edits.
 - `translation_repository_build.py` rebuilds Git-authoritative translation
   outputs without network or Weblate access.
+- `knowledge_model_support/rewrite.py` preserves package-coordinate boundaries
+  when translating mixed-lineage bundles. Every non-root source coordinate
+  requires an explicit, one-to-one translated identity mapping; flattening
+  unrelated version lines is rejected.
 - [`translation_repository_scaffold.py`][translation-repository-scaffold-py]: renders, checks, and
   refreshes managed translation repository docs and workflows without changing
   repository config or translations.

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from dsw_km_translation_tool.repository_ci_sync import build_repository_ci_sync_config
 from dsw_km_translation_tool.translation_repository_config import (
+    TranslationRepositoryConfigError,
     load_translation_repository_config,
     tracking_branch,
     version_paths,
@@ -114,6 +115,7 @@ def write_github_git_config(
     km_id: str = "root-tw",
     version: str = "0.1.0",
     upstream_bundle_path: str = "km/root-tw.km",
+    package_identity_mappings: str = "",
 ) -> None:
     """Write a GitHub-authoritative config pinned to a Git bundle."""
 
@@ -141,6 +143,7 @@ translation:
   translated_km_id: root-tw-zh-hant
   translated_name: Taiwan DSW Knowledge Model (zh-Hant)
   catalog_path: sources/catalog/zh_Hant/catalog.po
+{package_identity_mappings}
 
 branches:
   tracking_branch: main
@@ -220,6 +223,49 @@ def test_github_git_config_requires_commit_and_bundle_path(workspace: Path) -> N
     assert config.knowledge_model.upstream_bundle_path == Path("km/root-tw.km")
 
 
+def test_config_loads_distinct_package_identity_mappings(workspace: Path) -> None:
+    config_path = workspace / "translation-config.yml"
+    write_github_git_config(
+        config_path,
+        package_identity_mappings="""  package_identity_mappings:
+    - source_organization_id: dsw
+      source_km_id: root
+      translated_organization_id: dsw
+      translated_km_id: root-zh-hant
+      translated_name: Common DSW Knowledge Model (zh-Hant)
+""",
+    )
+
+    config = load_translation_repository_config(config_path)
+
+    assert len(config.translation.package_identity_mappings) == 1
+    mapping = config.translation.package_identity_mappings[0]
+    assert mapping.source_coordinate == ("dsw", "root")
+    assert mapping.translated_coordinate == ("dsw", "root-zh-hant")
+    assert mapping.translated_name == "Common DSW Knowledge Model (zh-Hant)"
+
+
+def test_config_rejects_package_identity_target_collision(workspace: Path) -> None:
+    config_path = workspace / "translation-config.yml"
+    write_github_git_config(
+        config_path,
+        package_identity_mappings="""  package_identity_mappings:
+    - source_organization_id: dsw
+      source_km_id: root
+      translated_organization_id: tw
+      translated_km_id: root-tw-zh-hant
+      translated_name: Incorrect collapsed lineage
+""",
+    )
+
+    try:
+        load_translation_repository_config(config_path)
+    except TranslationRepositoryConfigError as error:
+        assert "duplicate target: tw:root-tw-zh-hant" in str(error)
+    else:
+        raise AssertionError("Expected a translated package identity collision")
+
+
 def test_validate_translation_config_cli_reports_summary(
     repo_root: Path,
     workspace: Path,
@@ -282,6 +328,35 @@ def test_repository_ci_sync_config_derives_tracking_branch_and_source_paths(
     )
     assert config.output_organization_id == "dsw"
     assert config.output_km_id == "root-zh-hant"
+
+
+def test_repository_ci_sync_config_carries_package_identity_mappings(
+    workspace: Path,
+) -> None:
+    host_repo = workspace / "translation-repo"
+    tooling_repo = workspace / "tooling-repo"
+    host_repo.mkdir()
+    tooling_repo.mkdir()
+    write_github_git_config(
+        host_repo / "translation-config.yml",
+        package_identity_mappings="""  package_identity_mappings:
+    - source_organization_id: dsw
+      source_km_id: root
+      translated_organization_id: dsw
+      translated_km_id: root-zh-hant
+      translated_name: Common DSW Knowledge Model (zh-Hant)
+""",
+    )
+
+    config = build_repository_ci_sync_config(
+        host_repo_path=host_repo,
+        tooling_repo_path=tooling_repo,
+        config_path=Path("translation-config.yml"),
+        mode="pull_request",
+    )
+
+    assert len(config.package_identity_mappings) == 1
+    assert config.package_identity_mappings[0].source_coordinate == ("dsw", "root")
 
 
 def test_repository_config_resolves_supplemental_translation_directory(

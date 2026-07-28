@@ -384,7 +384,8 @@ def _run_sync_build_and_tests(
             "--output-name",
             config.translation.translated_name,
         ]
-        + _supplemental_po_to_km_args(repo_root, config),
+        + _supplemental_po_to_km_args(repo_root, config)
+        + _package_identity_mapping_args(config),
         cwd=tooling_repo,
         description=f"build translated KM for KM {paths.version}",
         echo_output=True,
@@ -414,6 +415,26 @@ def _supplemental_po_to_km_args(
     if directory is None:
         return []
     return ["--supplemental-translations-dir", str(repo_root / directory)]
+
+
+def _package_identity_mapping_args(
+    config: TranslationRepositoryConfig,
+) -> list[str]:
+    """Build PO-to-KM flags for mixed-lineage package identities."""
+
+    args: list[str] = []
+    for mapping in config.translation.package_identity_mappings:
+        args.extend(
+            [
+                "--package-identity-mapping",
+                mapping.source_organization_id,
+                mapping.source_km_id,
+                mapping.translated_organization_id,
+                mapping.translated_km_id,
+                mapping.translated_name,
+            ]
+        )
+    return args
 
 
 def _run_alignment_check(

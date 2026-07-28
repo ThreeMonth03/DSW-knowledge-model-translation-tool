@@ -142,6 +142,7 @@ def run_upstream_smoke(
         output_organization_id=updated_config.translation.translated_organization_id,
         output_km_id=updated_config.translation.translated_km_id,
         output_name=updated_config.translation.translated_name,
+        package_identity_mappings=updated_config.translation.package_identity_mappings,
     )
 
     alignment = build_alignment_status_report(

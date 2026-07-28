@@ -12,6 +12,7 @@ from dsw_km_translation_tool import (
     DEFAULT_TARGET_LANG,
     TranslationWorkflowService,
 )
+from dsw_km_translation_tool.data_models import KnowledgeModelPackageIdentityMapping
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
@@ -70,6 +71,24 @@ def build_argument_parser() -> argparse.ArgumentParser:
             "the upstream PO catalog."
         ),
     )
+    parser.add_argument(
+        "--package-identity-mapping",
+        action="append",
+        nargs=5,
+        default=[],
+        metavar=(
+            "SOURCE_ORG",
+            "SOURCE_KM",
+            "TRANSLATED_ORG",
+            "TRANSLATED_KM",
+            "TRANSLATED_NAME",
+        ),
+        help=(
+            "Map an additional source package coordinate in a mixed-lineage "
+            "bundle to a distinct translated coordinate and name. Repeat for "
+            "each non-root source coordinate."
+        ),
+    )
     return parser
 
 
@@ -90,6 +109,16 @@ def main() -> None:
             output_km_id=args.output_km_id,
             output_name=args.output_name,
             supplemental_translations_dir=args.supplemental_translations_dir,
+            package_identity_mappings=tuple(
+                KnowledgeModelPackageIdentityMapping(
+                    source_organization_id=values[0],
+                    source_km_id=values[1],
+                    translated_organization_id=values[2],
+                    translated_km_id=values[3],
+                    translated_name=values[4],
+                )
+                for values in args.package_identity_mapping
+            ),
         )
     except ValueError as error:
         raise SystemExit(str(error)) from error
