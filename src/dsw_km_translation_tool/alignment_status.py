@@ -135,6 +135,7 @@ def build_alignment_status_report(
             output_organization_id=repository_config.translation.translated_organization_id,
             output_km_id=repository_config.translation.translated_km_id,
             output_name=repository_config.translation.translated_name,
+            package_identity_mappings=(repository_config.translation.package_identity_mappings),
             supplemental_translations_dir=(
                 str(repo_root / repository_config.translation.supplemental_directory)
                 if repository_config.translation.supplemental_directory

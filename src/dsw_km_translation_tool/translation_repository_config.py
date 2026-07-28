@@ -15,6 +15,8 @@ from typing import Any
 
 import yaml
 
+from .data_models import KnowledgeModelPackageIdentityMapping
+
 
 class TranslationRepositoryConfigError(ValueError):
     """Raised when a translation repository config is invalid."""
@@ -45,6 +47,7 @@ class TranslationLanguageConfig:
     translated_name: str
     catalog_path: Path | None
     supplemental_directory: Path | None
+    package_identity_mappings: tuple[KnowledgeModelPackageIdentityMapping, ...]
 
 
 @dataclass(frozen=True)
@@ -147,6 +150,10 @@ def load_translation_repository_config(path: str | Path) -> TranslationRepositor
 
     knowledge_model = _load_knowledge_model_config(_require_dict(payload, "knowledge_model"))
     translation = _load_translation_config(_require_dict(payload, "translation"))
+    _validate_package_identity_mappings(
+        knowledge_model=knowledge_model,
+        translation=translation,
+    )
     branches = _load_branch_config(_require_dict(payload, "branches"))
     tooling = ToolingConfig(
         repository=_require_str(_require_dict(payload, "tooling"), "repository"),
@@ -206,7 +213,68 @@ def _load_translation_config(payload: dict[str, Any]) -> TranslationLanguageConf
         supplemental_directory=(
             Path(value) if (value := _optional_str(payload, "supplemental_directory")) else None
         ),
+        package_identity_mappings=_load_package_identity_mappings(payload),
     )
+
+
+def _load_package_identity_mappings(
+    payload: dict[str, Any],
+) -> tuple[KnowledgeModelPackageIdentityMapping, ...]:
+    raw_mappings = payload.get("package_identity_mappings", [])
+    if not isinstance(raw_mappings, list):
+        raise TranslationRepositoryConfigError(
+            "Expected list at `translation.package_identity_mappings`"
+        )
+
+    mappings: list[KnowledgeModelPackageIdentityMapping] = []
+    for index, raw_mapping in enumerate(raw_mappings):
+        if not isinstance(raw_mapping, dict):
+            raise TranslationRepositoryConfigError(
+                f"Expected mapping at `translation.package_identity_mappings[{index}]`"
+            )
+        mappings.append(
+            KnowledgeModelPackageIdentityMapping(
+                source_organization_id=_require_str(
+                    raw_mapping,
+                    "source_organization_id",
+                ),
+                source_km_id=_require_str(raw_mapping, "source_km_id"),
+                translated_organization_id=_require_str(
+                    raw_mapping,
+                    "translated_organization_id",
+                ),
+                translated_km_id=_require_str(raw_mapping, "translated_km_id"),
+                translated_name=_require_str(raw_mapping, "translated_name"),
+            )
+        )
+    return tuple(mappings)
+
+
+def _validate_package_identity_mappings(
+    *,
+    knowledge_model: KnowledgeModelRepositoryConfig,
+    translation: TranslationLanguageConfig,
+) -> None:
+    primary_source = (knowledge_model.organization_id, knowledge_model.km_id)
+    primary_target = (
+        translation.translated_organization_id,
+        translation.translated_km_id,
+    )
+    source_coordinates = {primary_source}
+    target_coordinates = {primary_target}
+    for mapping in translation.package_identity_mappings:
+        if mapping.source_coordinate in source_coordinates:
+            source = ":".join(mapping.source_coordinate)
+            raise TranslationRepositoryConfigError(
+                f"Duplicate translated package source coordinate: {source}"
+            )
+        if mapping.translated_coordinate in target_coordinates:
+            target = ":".join(mapping.translated_coordinate)
+            raise TranslationRepositoryConfigError(
+                f"Translated package coordinates must remain distinct; duplicate target: {target}"
+            )
+        source_coordinates.add(mapping.source_coordinate)
+        target_coordinates.add(mapping.translated_coordinate)
 
 
 def _load_branch_config(payload: dict[str, Any]) -> BranchConfig:

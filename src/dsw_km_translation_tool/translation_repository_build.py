@@ -109,6 +109,7 @@ def build_translation_repository(
         output_organization_id=config.translation.translated_organization_id,
         output_km_id=config.translation.translated_km_id,
         output_name=config.translation.translated_name,
+        package_identity_mappings=config.translation.package_identity_mappings,
         supplemental_translations_dir=(
             str(root / config.translation.supplemental_directory)
             if config.translation.supplemental_directory

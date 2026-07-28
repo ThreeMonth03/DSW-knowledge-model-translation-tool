@@ -65,6 +65,10 @@ def main() -> None:
         lines.append(
             f"Supplemental translations: {config.translation.supplemental_directory.as_posix()}"
         )
+    for mapping in config.translation.package_identity_mappings:
+        source = ":".join(mapping.source_coordinate)
+        target = ":".join(mapping.translated_coordinate)
+        lines.append(f"Package identity mapping: {source} -> {target}")
     print("\n".join(lines))
     if args.summary:
         write_summary(Path(args.summary), lines)

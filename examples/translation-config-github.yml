@@ -19,6 +19,14 @@ translation:
   translated_km_id: root-tw-zh-hant
   translated_name: Taiwan DSW Knowledge Model (zh-Hant)
   catalog_path: sources/catalog/zh_Hant/catalog.po
+  # This source bundle forks from dsw:root. Keep its translated ancestor in a
+  # separate KM namespace so DSW does not compare 0.1.0 with dsw:root 2.7.0.
+  package_identity_mappings:
+    - source_organization_id: dsw
+      source_km_id: root
+      translated_organization_id: tw
+      translated_km_id: root-tw-base-zh-hant
+      translated_name: Taiwan KM translated upstream base (zh-Hant)
 
 branches:
   tracking_branch: main

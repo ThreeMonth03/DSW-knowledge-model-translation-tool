@@ -15,6 +15,7 @@ The complete source commit and bundle path are pinned in
 `tree/**/translation.md`. `sources/`, `builds/`, and generated tree metadata are
 maintained by the DSW KM Translation Tool.
 
+{{PACKAGE_IDENTITY_GUIDANCE}}
 For a local meeting build, import `builds/final_translated.km`. Do not import
 the version-looking file under `sources/knowledge-models/`: that is the pinned
 source-language input. Pull-request CI also publishes a 14-day

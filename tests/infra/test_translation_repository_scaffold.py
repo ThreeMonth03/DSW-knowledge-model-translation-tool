@@ -158,3 +158,32 @@ def test_scaffold_renders_pinned_git_source_profile(
         repo_root=target_repo,
         tooling_repo=repo_root,
     ).aligned
+
+
+def test_scaffold_documents_mixed_lineage_package_mappings(
+    repo_root: Path,
+    workspace: Path,
+) -> None:
+    target_repo = workspace / "translation-repo"
+    target_repo.mkdir()
+    write_github_git_config(
+        target_repo / "translation-config.yml",
+        package_identity_mappings="""  package_identity_mappings:
+    - source_organization_id: dsw
+      source_km_id: root
+      translated_organization_id: tw
+      translated_km_id: root-tw-base-zh-hant
+      translated_name: Taiwan KM translated upstream base (zh-Hant)
+""",
+    )
+
+    sync_translation_repository_scaffold(
+        repo_root=target_repo,
+        tooling_repo=repo_root,
+    )
+
+    readme = (target_repo / "README.md").read_text(encoding="utf-8")
+    maintenance = (target_repo / "docs/maintenance.md").read_text(encoding="utf-8")
+    for content in (readme, maintenance):
+        assert "`dsw:root` → `tw:root-tw-base-zh-hant`" in content
+        assert "DSW calculates project updates only within its own version" in content

@@ -14,6 +14,7 @@ from typing import Any
 
 from .data_models import (
     KmBuildResult,
+    KnowledgeModelPackageIdentityMapping,
     OutlineBuildResult,
     PoBuildResult,
     PoDiffReviewResult,
@@ -223,6 +224,7 @@ class TranslationWorkflowService:
         output_km_id: str | None = None,
         output_name: str | None = None,
         supplemental_translations_dir: str | None = None,
+        package_identity_mappings: tuple[KnowledgeModelPackageIdentityMapping, ...] = (),
     ) -> KmBuildResult:
         """Generate a translated KM bundle directly from a translated PO file.
 
@@ -240,6 +242,8 @@ class TranslationWorkflowService:
                 Defaults to the source name suffixed with target language.
             supplemental_translations_dir: Optional directory of strict
                 Markdown forms for KM fields omitted from the upstream PO.
+            package_identity_mappings: Explicit translated identities for
+                additional package coordinates in mixed-lineage bundles.
 
         Returns:
             Result containing generated KM content and application summary.
@@ -290,6 +294,7 @@ class TranslationWorkflowService:
             output_km_id=output_km_id,
             output_name=output_name,
             target_lang=self.target_lang,
+            package_identity_mappings=package_identity_mappings,
         )
         out_km_file = Path(out_model_path)
         out_km_file.parent.mkdir(parents=True, exist_ok=True)

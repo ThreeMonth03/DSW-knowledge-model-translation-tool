@@ -5,7 +5,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from dsw_km_translation_tool.data_models import PoBlock
+import pytest
+
+from dsw_km_translation_tool.data_models import (
+    KnowledgeModelPackageIdentityMapping,
+    PoBlock,
+)
+from dsw_km_translation_tool.knowledge_model_support import KnowledgeModelBundleWriter
 from dsw_km_translation_tool.po import PoCatalogParser, PoStringCodec
 from tests.helpers import parse_po_entries
 
@@ -66,6 +72,54 @@ def test_build_km_from_po_applies_translated_msgstrs_to_latest_model_fields(
             entry.field,
         )
         assert actual_text == expected_text
+
+
+def test_mixed_lineage_requires_explicit_package_identity_mapping(workspace) -> None:
+    source_path = workspace / "mixed-lineage.km"
+    source_path.write_text(json.dumps(_mixed_lineage_bundle()), encoding="utf-8")
+
+    with pytest.raises(ValueError, match=r"missing: dsw:root"):
+        KnowledgeModelBundleWriter().rewrite_translations(
+            original_model_path=str(source_path),
+            po_entries=[],
+            output_organization_id="tw",
+            output_km_id="root-tw-zh-hant",
+            output_name="Taiwan DSW Knowledge Model (zh-Hant)",
+            target_lang="zh_Hant",
+        )
+
+
+def test_mixed_lineage_preserves_distinct_translated_package_coordinates(workspace) -> None:
+    source_path = workspace / "mixed-lineage.km"
+    source_path.write_text(json.dumps(_mixed_lineage_bundle()), encoding="utf-8")
+
+    content, translations = KnowledgeModelBundleWriter().rewrite_translations(
+        original_model_path=str(source_path),
+        po_entries=[],
+        output_organization_id="tw",
+        output_km_id="root-tw-zh-hant",
+        output_name="Taiwan DSW Knowledge Model (zh-Hant)",
+        target_lang="zh_Hant",
+        package_identity_mappings=(
+            KnowledgeModelPackageIdentityMapping(
+                source_organization_id="dsw",
+                source_km_id="root",
+                translated_organization_id="dsw",
+                translated_km_id="root-zh-hant",
+                translated_name="Common DSW Knowledge Model (zh-Hant)",
+            ),
+        ),
+    )
+
+    assert translations == {}
+    bundle = json.loads(content)
+    ancestor, taiwan = bundle["packages"]
+    assert ancestor["id"] == "dsw:root-zh-hant:2.7.0"
+    assert ancestor["name"] == "Common DSW Knowledge Model (zh-Hant)"
+    assert taiwan["id"] == "tw:root-tw-zh-hant:0.1.0"
+    assert taiwan["previousPackageId"] == "dsw:root-zh-hant:2.7.0"
+    assert taiwan["forkOfPackageId"] == "dsw:root-zh-hant:2.7.0"
+    assert bundle["id"] == taiwan["id"]
 
 
 def test_fully_translated_shared_msgid_roundtrips_from_km_to_translation_tree(
@@ -133,6 +187,40 @@ def test_fully_translated_shared_msgid_roundtrips_from_km_to_translation_tree(
         state = scan_result.folders_by_uuid[reference.uuid].fields[reference.field]
         assert state.source_text == translated_text
         assert state.target_text == translated_text
+
+
+def _mixed_lineage_bundle() -> dict[str, object]:
+    return {
+        "id": "tw:root-tw:0.1.0",
+        "organizationId": "tw",
+        "kmId": "root-tw",
+        "name": "Taiwan DSW Knowledge Model",
+        "version": "0.1.0",
+        "packages": [
+            {
+                "id": "dsw:root:2.7.0",
+                "organizationId": "dsw",
+                "kmId": "root",
+                "name": "Common DSW Knowledge Model",
+                "version": "2.7.0",
+                "previousPackageId": None,
+                "forkOfPackageId": None,
+                "mergeCheckpointPackageId": None,
+                "events": [],
+            },
+            {
+                "id": "tw:root-tw:0.1.0",
+                "organizationId": "tw",
+                "kmId": "root-tw",
+                "name": "Taiwan DSW Knowledge Model",
+                "version": "0.1.0",
+                "previousPackageId": "dsw:root:2.7.0",
+                "forkOfPackageId": "dsw:root:2.7.0",
+                "mergeCheckpointPackageId": None,
+                "events": [],
+            },
+        ],
+    }
 
 
 def select_shared_msgid_block(po_path: Path) -> PoBlock:

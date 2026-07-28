@@ -25,6 +25,7 @@ The command rejects a source checkout whose HEAD differs from the pinned SHA,
 validates the official KM schema and package identity, carries only unchanged
 translations, and builds the editable tree and translated KM.
 
+{{PACKAGE_IDENTITY_GUIDANCE}}
 For review feedback, amend the source commit first, update `upstream_ref`, rerun
 the command, update changed translations, and amend this repository's commit.
 
