@@ -209,6 +209,9 @@ def _template_values(config: TranslationRepositoryConfig) -> dict[str, str]:
         "TRANSLATED_KM_ID": (
             f"{config.translation.translated_organization_id}:{config.translation.translated_km_id}"
         ),
+        "TRANSLATED_ASSET_STEM": (
+            f"{config.translation.translated_organization_id}-{config.translation.translated_km_id}"
+        ),
     }
 
 

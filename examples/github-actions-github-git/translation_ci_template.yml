@@ -69,3 +69,29 @@ jobs:
       - name: Verify reproducible checkout
         working-directory: translation-repo
         run: git diff --exit-code
+
+      - name: Prepare review artifact
+        run: |
+          artifact="$RUNNER_TEMP/{{TRANSLATED_ASSET_STEM}}"
+          mkdir -p "$artifact"
+          cp translation-repo/builds/final_translated.km \
+            "$artifact/{{TRANSLATED_ASSET_STEM}}.km"
+          cp translation-repo/builds/final_translated.po \
+            "$artifact/{{TRANSLATED_ASSET_STEM}}.po"
+          cp translation-repo/translation-config.yml \
+            "$artifact/translation-config.yml"
+          (
+            cd "$artifact"
+            sha256sum {{TRANSLATED_ASSET_STEM}}.km \
+              > {{TRANSLATED_ASSET_STEM}}.km.sha256
+            sha256sum {{TRANSLATED_ASSET_STEM}}.po \
+              > {{TRANSLATED_ASSET_STEM}}.po.sha256
+          )
+
+      - name: Upload review artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: {{TRANSLATED_ASSET_STEM}}-${{ github.sha }}
+          path: ${{ runner.temp }}/{{TRANSLATED_ASSET_STEM}}
+          if-no-files-found: error
+          retention-days: 14

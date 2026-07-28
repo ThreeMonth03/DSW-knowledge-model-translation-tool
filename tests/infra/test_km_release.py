@@ -6,6 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
 import yaml
 
 from dsw_km_translation_tool.km_release import (
@@ -184,6 +185,47 @@ def test_release_validator_rejects_moved_tag(
         assert "No KM release is present" in str(error)
     else:
         raise AssertionError("Expected an unreleased source repository to fail strict validation")
+
+
+def test_release_validator_rejects_disconnected_questionnaire_lineage(
+    repo_root: Path,
+    workspace: Path,
+    model_path: Path,
+) -> None:
+    target = workspace / "source-repo"
+    scaffold_km_source_repository(
+        repo_root=target,
+        tooling_repo=repo_root,
+        organization_id="tw",
+        km_id="root-tw",
+        name="Taiwan DSW Knowledge Model",
+        initial_parent_package_id="dsw:root:2.7.0",
+        tooling_repository="ThreeMonth03/dsw-km-translation-tool",
+        tooling_ref="abc123",
+    )
+    bundle = write_tw_bundle(target, model_path)
+    latest = bundle["packages"][-1]
+    latest["previousPackageId"] = None
+    bundle_path = target / "km" / "root-tw.km"
+    bundle_path.write_text(
+        json.dumps(bundle, ensure_ascii=False, separators=(",", ":")),
+        encoding="utf-8",
+    )
+    manifest = {
+        "schema_version": 1,
+        "package_id": bundle["id"],
+        "version": bundle["version"],
+        "previous_package_id": None,
+        "forked_from": "dsw:root:2.7.0",
+        "bundle_sha256": hashlib.sha256(bundle_path.read_bytes()).hexdigest(),
+    }
+    (target / "release-manifest.yml").write_text(
+        yaml.safe_dump(manifest, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(KmReleaseValidationError, match="empty questionnaire"):
+        validate_km_release_repository(repo_root=target)
 
 
 def test_release_validator_rejects_rewritten_historical_package(

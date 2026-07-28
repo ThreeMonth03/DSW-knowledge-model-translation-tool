@@ -49,6 +49,13 @@ def validate_km_release_with_github_history(
             tag=tag,
             allow_unreleased=allow_unreleased,
         )
+    if manifest.previous_package_id == config.initial_parent_package_id:
+        return validate_km_release_repository(
+            repo_root=root,
+            config_path=resolved_config,
+            tag=tag,
+            allow_unreleased=allow_unreleased,
+        )
 
     prefix = f"{config.organization_id}:{config.km_id}:"
     if not manifest.previous_package_id.startswith(prefix):

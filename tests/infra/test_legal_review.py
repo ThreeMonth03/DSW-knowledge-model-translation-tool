@@ -285,7 +285,7 @@ def test_legal_draft_appends_valid_deterministic_child_package(
     assert draft["id"] == result.package_id
     child = draft["packages"][-1]
     assert child["forkOfPackageId"] == result.parent_package_id
-    assert child["previousPackageId"] is None
+    assert child["previousPackageId"] == result.parent_package_id
     assert child["id"] == result.package_id
     assert len(child["events"]) == 5
 

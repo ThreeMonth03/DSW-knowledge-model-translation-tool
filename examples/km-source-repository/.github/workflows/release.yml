@@ -48,17 +48,35 @@ jobs:
         working-directory: km-repo
         run: |
           version="${GITHUB_REF_NAME#v}"
-          asset="$RUNNER_TEMP/{{KM_ID}}-${version}.km"
-          cp "km/{{KM_ID}}.km" "$asset"
-          sha256sum "$asset" > "${asset}.sha256"
+          assets="$RUNNER_TEMP/release-assets"
+          mkdir -p "$assets"
+          cp "km/{{KM_ID}}.km" "$assets/{{ASSET_STEM}}-${version}.km"
+          cp "km/{{KM_ID}}.km" "$assets/{{ASSET_STEM}}.km"
+          cp "release-manifest.yml" "$assets/release-manifest.yml"
+          (
+            cd "$assets"
+            sha256sum "{{ASSET_STEM}}-${version}.km" \
+              > "{{ASSET_STEM}}-${version}.km.sha256"
+            sha256sum "{{ASSET_STEM}}.km" \
+              > "{{ASSET_STEM}}.km.sha256"
+          )
 
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          gh release create "$GITHUB_REF_NAME"
-          "$RUNNER_TEMP/{{KM_ID}}-${GITHUB_REF_NAME#v}.km"
-          "$RUNNER_TEMP/{{KM_ID}}-${GITHUB_REF_NAME#v}.km.sha256"
-          --repo "$GITHUB_REPOSITORY"
-          --verify-tag
-          --generate-notes
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          prerelease=()
+          if [[ "$version" == 0.* ]]; then
+            prerelease+=(--prerelease)
+          fi
+          gh release create "$GITHUB_REF_NAME" \
+            "$RUNNER_TEMP/release-assets/{{ASSET_STEM}}-${version}.km" \
+            "$RUNNER_TEMP/release-assets/{{ASSET_STEM}}-${version}.km.sha256" \
+            "$RUNNER_TEMP/release-assets/{{ASSET_STEM}}.km" \
+            "$RUNNER_TEMP/release-assets/{{ASSET_STEM}}.km.sha256" \
+            "$RUNNER_TEMP/release-assets/release-manifest.yml" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --generate-notes \
+            "${prerelease[@]}"

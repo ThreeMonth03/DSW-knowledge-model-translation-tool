@@ -46,6 +46,9 @@ def scaffold_km_source_repository(
         "ORGANIZATION_ID": _required(organization_id, "organization ID"),
         "KM_ID": _required(km_id, "KM ID"),
         "KM_NAME": _required(name, "KM name"),
+        "ASSET_STEM": (
+            f"{_required(organization_id, 'organization ID')}-{_required(km_id, 'KM ID')}"
+        ),
         "INITIAL_PARENT_PACKAGE_ID": _required(
             initial_parent_package_id,
             "initial parent package ID",

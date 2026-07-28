@@ -123,7 +123,7 @@ def build_legal_draft(
         "nonEditable": False,
         "organizationId": organization_id,
         "phase": "ReleasedKnowledgeModelPackagePhase",
-        "previousPackageId": None,
+        "previousPackageId": parent_package_id,
         "readme": readme,
         "version": version,
     }
