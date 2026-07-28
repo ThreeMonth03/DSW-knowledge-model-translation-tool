@@ -45,3 +45,22 @@ jobs:
           --repo-root km-repo
           --github-repository "$GITHUB_REPOSITORY"
           --allow-unreleased
+
+      - name: Prepare review artifact
+        run: |
+          artifact="$RUNNER_TEMP/{{ASSET_STEM}}"
+          mkdir -p "$artifact"
+          cp km-repo/km/{{KM_ID}}.km "$artifact/{{ASSET_STEM}}.km"
+          cp km-repo/release-manifest.yml "$artifact/release-manifest.yml"
+          (
+            cd "$artifact"
+            sha256sum {{ASSET_STEM}}.km > {{ASSET_STEM}}.km.sha256
+          )
+
+      - name: Upload review artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: {{ASSET_STEM}}-${{ github.sha }}
+          path: ${{ runner.temp }}/{{ASSET_STEM}}
+          if-no-files-found: error
+          retention-days: 14

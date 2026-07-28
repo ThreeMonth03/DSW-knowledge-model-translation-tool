@@ -144,9 +144,15 @@ def test_scaffold_renders_pinned_git_source_profile(
 
     assert result.aligned is False
     workflow = (target_repo / ".github/workflows/translation_ci.yml").read_text(encoding="utf-8")
+    release_workflow = (target_repo / ".github/workflows/release.yml").read_text(encoding="utf-8")
     readme = (target_repo / "README.md").read_text(encoding="utf-8")
     assert "dsw-km-sync-git-source" in workflow
     assert 'SOURCE_REF: "' + "1" * 40 + '"' in workflow
+    assert "actions/upload-artifact@v4" in workflow
+    assert "tw-root-tw-zh-hant-${{ github.sha }}" in workflow
+    assert "gh release create" in release_workflow
+    assert "tw-root-tw-zh-hant-${version}.km" in release_workflow
+    assert "translation-config.yml" in release_workflow
     assert "bundle: `km/root-tw.km`" in readme
     assert check_translation_repository_scaffold(
         repo_root=target_repo,

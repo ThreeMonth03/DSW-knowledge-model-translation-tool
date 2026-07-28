@@ -39,6 +39,14 @@ tooling-repo/.venv/bin/dsw-km-build-translation-repo --repo-root .
 Commit the tree, catalog, review report, and build outputs together. Pull
 requests rebuild them and fail if the checkout is not reproducible.
 
+Pull-request CI uploads a 14-day review artifact named
+`{{TRANSLATED_ASSET_STEM}}-<commit SHA>`. An immutable `v<version>` tag creates
+a GitHub Release containing the versioned KM and PO, a stable
+`{{TRANSLATED_ASSET_STEM}}.km` alias, checksums, and the pinned
+`translation-config.yml` provenance record. Releases below `1.0.0` are marked
+as pre-releases. Workflow artifacts are for review; GitHub Releases are the
+long-term archive.
+
 ## Release cutover
 
 After the source version is approved and published, change

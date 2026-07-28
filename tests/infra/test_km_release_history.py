@@ -16,6 +16,66 @@ from dsw_km_translation_tool.km_source_repository_scaffold import (
 from tests.infra.test_km_release import write_tw_bundle
 
 
+def test_validate_initial_fork_does_not_request_a_previous_target_release(
+    repo_root: Path,
+    workspace: Path,
+    model_path: Path,
+) -> None:
+    target = workspace / "source-repo"
+    scaffold_km_source_repository(
+        repo_root=target,
+        tooling_repo=repo_root,
+        organization_id="tw",
+        km_id="root-tw",
+        name="Taiwan DSW Knowledge Model",
+        initial_parent_package_id="dsw:root:2.7.0",
+        tooling_repository="ThreeMonth03/dsw-km-translation-tool",
+        tooling_ref="abc123",
+    )
+    bundle = json.loads(model_path.read_text(encoding="utf-8"))
+    parent_id = bundle["id"]
+    child = {
+        **bundle["packages"][-1],
+        "description": "Initial Taiwan fork",
+        "events": [],
+        "forkOfPackageId": parent_id,
+        "id": "tw:root-tw:0.1.0",
+        "kmId": "root-tw",
+        "name": "Taiwan DSW Knowledge Model",
+        "organizationId": "tw",
+        "previousPackageId": parent_id,
+        "version": "0.1.0",
+    }
+    bundle["packages"].append(child)
+    bundle.update(
+        {
+            "id": child["id"],
+            "kmId": child["kmId"],
+            "name": child["name"],
+            "organizationId": child["organizationId"],
+            "version": child["version"],
+        }
+    )
+    bundle_path = target / "km" / "root-tw.km"
+    bundle_path.write_text(
+        json.dumps(bundle, ensure_ascii=False, separators=(",", ":")),
+        encoding="utf-8",
+    )
+    prepare_km_release_manifest(repo_root=target)
+    downloads: list[str] = []
+
+    result = validate_km_release_with_github_history(
+        repo_root=target,
+        github_repository="ThreeMonth03/dsw-root-tw",
+        metadata_downloader=lambda url, _token: downloads.append(url) or b"",
+        asset_downloader=lambda url, _token: downloads.append(url) or b"",
+    )
+
+    assert result.released is True
+    assert result.package_id == child["id"]
+    assert downloads == []
+
+
 def test_validate_release_downloads_previous_github_bundle(
     repo_root: Path,
     workspace: Path,

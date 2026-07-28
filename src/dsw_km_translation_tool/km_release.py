@@ -12,7 +12,7 @@ from typing import Any
 
 import yaml
 
-from .dsw_models_adapter import DswModelsBundleAdapter
+from .dsw_models_adapter import DswModelsBundleAdapter, TypedKnowledgeModelEvent
 from .translation_repository_config import normalize_version
 
 
@@ -187,7 +187,7 @@ def validate_km_release_repository(
     manifest = load_km_release_manifest(manifest_path)
     bundle = _load_bundle(bundle_path)
     try:
-        DswModelsBundleAdapter.load_bundle_events(str(bundle_path))
+        events, _ = DswModelsBundleAdapter.load_bundle_events(str(bundle_path))
     except (OSError, RuntimeError, ValueError) as error:
         raise KmReleaseValidationError(
             f"KM bundle does not match the official DSW schema: {error}"
@@ -202,6 +202,7 @@ def validate_km_release_repository(
         actual_sha=actual_sha,
         tag=tag,
     )
+    _validate_questionnaire_lineage(errors=errors, events=events)
     packages, event_count = _validate_package_chain(
         errors=errors,
         bundle=bundle,
@@ -358,6 +359,26 @@ def _validate_package_chain(
             previous.get("id"),
         )
     return packages, event_count
+
+
+def _validate_questionnaire_lineage(
+    *,
+    errors: list[str],
+    events: list[TypedKnowledgeModelEvent],
+) -> None:
+    """Ensure the selected package lineage contains the KM root event."""
+
+    root_events = [event for event in events if event.event_type == "AddKnowledgeModelEvent"]
+    if not root_events:
+        errors.append(
+            "selected package lineage has no AddKnowledgeModelEvent; "
+            "DSW would create an empty questionnaire"
+        )
+    elif len(root_events) > 1:
+        errors.append(
+            "selected package lineage has multiple AddKnowledgeModelEvent roots: "
+            + ", ".join(event.entity_uuid for event in root_events)
+        )
 
 
 def _validate_immutable_history(

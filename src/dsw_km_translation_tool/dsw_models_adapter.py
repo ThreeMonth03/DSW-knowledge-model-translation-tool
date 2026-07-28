@@ -84,7 +84,9 @@ class DswModelsBundleAdapter:
         bundle = bundle_class.model_validate(normalized_root)
 
         events: list[TypedKnowledgeModelEvent] = []
-        for package_index, package in enumerate(bundle.packages):
+        package_indexes = cls._resolve_package_lineage(normalized_root)
+        for package_index in package_indexes:
+            package = bundle.packages[package_index]
             for event_index, event in enumerate(package.events):
                 dumped_event = event.model_dump(
                     by_alias=True,
@@ -119,6 +121,70 @@ class DswModelsBundleAdapter:
             name=bundle.name or bundle.km_id or "Knowledge Model",
         )
         return events, model_info
+
+    @staticmethod
+    def _resolve_package_lineage(root: dict[str, Any]) -> list[int]:
+        """Return package indexes in the lineage selected by the bundle ID.
+
+        A bundle may carry packages from more than one lineage. DSW builds the
+        effective knowledge model by starting at the package identified by the
+        bundle-level ``id`` and following ``previousPackageId``. Mirroring that
+        behavior prevents disconnected packages from making local validation
+        appear successful while producing an empty questionnaire in DSW.
+
+        Args:
+            root: Normalized bundle JSON.
+
+        Returns:
+            Package indexes ordered from the oldest ancestor to the selected
+            bundle package.
+
+        Raises:
+            ValueError: If the selected lineage is missing, duplicated, or
+            cyclic.
+        """
+
+        packages = root.get("packages")
+        if not isinstance(packages, list):
+            raise ValueError("KM bundle packages must be a list")
+
+        package_indexes: dict[str, int] = {}
+        for index, package in enumerate(packages):
+            if not isinstance(package, dict):
+                raise ValueError(f"KM bundle package at index {index} must be an object")
+            package_id = package.get("id")
+            if not isinstance(package_id, str) or not package_id:
+                raise ValueError(f"KM bundle package at index {index} has no ID")
+            if package_id in package_indexes:
+                raise ValueError(f"KM bundle contains duplicate package ID {package_id}")
+            package_indexes[package_id] = index
+
+        current_id = root.get("id")
+        if not isinstance(current_id, str) or not current_id:
+            raise ValueError("KM bundle id must be a non-empty string")
+
+        lineage: list[int] = []
+        visited: set[str] = set()
+        while current_id is not None:
+            if current_id in visited:
+                raise ValueError(f"KM bundle package lineage is cyclic at {current_id}")
+            visited.add(current_id)
+
+            try:
+                current_index = package_indexes[current_id]
+            except KeyError as error:
+                raise ValueError(
+                    f"KM bundle package lineage references missing package {current_id}"
+                ) from error
+
+            lineage.append(current_index)
+            previous_id = packages[current_index].get("previousPackageId")
+            if previous_id is not None and (not isinstance(previous_id, str) or not previous_id):
+                raise ValueError(f"KM bundle package {current_id} has an invalid previousPackageId")
+            current_id = previous_id
+
+        lineage.reverse()
+        return lineage
 
     @classmethod
     def _normalize_edit_event_fields(cls, value: Any) -> Any:

@@ -1,0 +1,125 @@
+name: Publish {{TARGET_LANGUAGE_LABEL}} KM Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  TOOLING_REPOSITORY: {{TOOLING_REPOSITORY}}
+  TOOLING_REF: "{{TOOLING_REF}}"
+  SOURCE_REPOSITORY: {{SOURCE_REPOSITORY}}
+  SOURCE_REF: "{{SOURCE_REF}}"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout translation repository
+        uses: actions/checkout@v5
+        with:
+          path: translation-repo
+
+      - name: Checkout translation tooling
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ env.TOOLING_REPOSITORY }}
+          ref: ${{ env.TOOLING_REF }}
+          path: tooling-repo
+
+      - name: Checkout pinned Git source
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ env.SOURCE_REPOSITORY }}
+          ref: ${{ env.SOURCE_REF }}
+          path: source-repo
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install tooling
+        working-directory: tooling-repo
+        run: make install-dev BOOTSTRAP_PYTHON=python
+
+      - name: Validate configuration
+        run: >-
+          tooling-repo/.venv/bin/dsw-km-validate-config
+          --config translation-repo/translation-config.yml
+
+      - name: Check managed scaffold
+        run: >-
+          tooling-repo/.venv/bin/dsw-km-scaffold check
+          --repo-root translation-repo
+          --tooling-repo tooling-repo
+
+      - name: Synchronize pinned Git source and rebuild
+        run: >-
+          tooling-repo/.venv/bin/dsw-km-sync-git-source
+          --repo-root translation-repo
+          --source-repo source-repo
+
+      - name: Verify reproducible checkout
+        working-directory: translation-repo
+        run: git diff --exit-code
+
+      - name: Validate release tag
+        run: |
+          version="$(
+            python -c \
+              'import json; print(json.load(open("translation-repo/builds/final_translated.km"))["version"])'
+          )"
+          if [[ "$GITHUB_REF_NAME" != "v${version}" ]]; then
+            printf 'Tag %s does not match KM version %s\n' \
+              "$GITHUB_REF_NAME" "$version" >&2
+            exit 1
+          fi
+
+      - name: Prepare release assets
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          assets="$RUNNER_TEMP/release-assets"
+          mkdir -p "$assets"
+          cp translation-repo/builds/final_translated.km \
+            "$assets/{{TRANSLATED_ASSET_STEM}}-${version}.km"
+          cp translation-repo/builds/final_translated.km \
+            "$assets/{{TRANSLATED_ASSET_STEM}}.km"
+          cp translation-repo/builds/final_translated.po \
+            "$assets/{{TRANSLATED_ASSET_STEM}}-${version}.po"
+          cp translation-repo/translation-config.yml \
+            "$assets/translation-config.yml"
+          (
+            cd "$assets"
+            sha256sum "{{TRANSLATED_ASSET_STEM}}-${version}.km" \
+              > "{{TRANSLATED_ASSET_STEM}}-${version}.km.sha256"
+            sha256sum "{{TRANSLATED_ASSET_STEM}}.km" \
+              > "{{TRANSLATED_ASSET_STEM}}.km.sha256"
+            sha256sum "{{TRANSLATED_ASSET_STEM}}-${version}.po" \
+              > "{{TRANSLATED_ASSET_STEM}}-${version}.po.sha256"
+          )
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          prerelease=()
+          if [[ "$version" == 0.* ]]; then
+            prerelease+=(--prerelease)
+          fi
+          gh release create "$GITHUB_REF_NAME" \
+            "$RUNNER_TEMP/release-assets/{{TRANSLATED_ASSET_STEM}}-${version}.km" \
+            "$RUNNER_TEMP/release-assets/{{TRANSLATED_ASSET_STEM}}-${version}.km.sha256" \
+            "$RUNNER_TEMP/release-assets/{{TRANSLATED_ASSET_STEM}}.km" \
+            "$RUNNER_TEMP/release-assets/{{TRANSLATED_ASSET_STEM}}.km.sha256" \
+            "$RUNNER_TEMP/release-assets/{{TRANSLATED_ASSET_STEM}}-${version}.po" \
+            "$RUNNER_TEMP/release-assets/{{TRANSLATED_ASSET_STEM}}-${version}.po.sha256" \
+            "$RUNNER_TEMP/release-assets/translation-config.yml" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --generate-notes \
+            "${prerelease[@]}"

@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import copy
+import json
 from pathlib import Path
 
-from dsw_km_translation_tool.dsw_models_adapter import TypedKnowledgeModelEvent
+from dsw_km_translation_tool.dsw_models_adapter import (
+    DswModelsBundleAdapter,
+    TypedKnowledgeModelEvent,
+)
 from dsw_km_translation_tool.knowledge_model_service import KnowledgeModelService
 from dsw_km_translation_tool.knowledge_model_support import KnowledgeModelEventMerger
 
@@ -122,6 +127,38 @@ def test_event_merger_applies_same_timestamp_add_before_edit() -> None:
     content = latest_by_uuid[SAME_TIMESTAMP_ENTITY_UUID]["content"]
     assert content["eventType"] == "EditQuestionEvent"
     assert content["title"] == "Are there any other outputs?"
+
+
+def test_model_loader_ignores_packages_outside_selected_lineage(
+    workspace: Path,
+    model_path: Path,
+) -> None:
+    """Match DSW's previous-package traversal when a fork is disconnected."""
+
+    root = json.loads(model_path.read_text(encoding="utf-8"))
+    disconnected = copy.deepcopy(root["packages"][-1])
+    disconnected["id"] = "example:disconnected:1.0.0"
+    disconnected["organizationId"] = "example"
+    disconnected["kmId"] = "disconnected"
+    disconnected["version"] = "1.0.0"
+    disconnected["previousPackageId"] = None
+    disconnected["forkOfPackageId"] = root["id"]
+    disconnected["events"] = disconnected["events"][:1]
+    root["packages"].append(disconnected)
+    root["id"] = disconnected["id"]
+    root["organizationId"] = disconnected["organizationId"]
+    root["kmId"] = disconnected["kmId"]
+    root["version"] = disconnected["version"]
+    disconnected_path = workspace / "disconnected.km"
+    disconnected_path.write_text(
+        json.dumps(root, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    events, _ = DswModelsBundleAdapter.load_bundle_events(str(disconnected_path))
+
+    assert len(events) == 1
+    assert events[0].package_index == len(root["packages"]) - 1
 
 
 def make_typed_event(
