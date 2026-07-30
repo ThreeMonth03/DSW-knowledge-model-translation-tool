@@ -41,6 +41,9 @@ Normal translation work happens in Localize/Weblate. Automation then mirrors the
 website state into this repository:
 
 - Scheduled sync pulls Weblate into Git.
+- Same-repository pull requests expand canonical shared-block translations into
+  their referenced tree fields before translation reporting; fork pull requests
+  remain read-only.
 - Pull requests that do not edit translation text can be refreshed from Weblate
   before merge.
 - Pull requests that edit `tree/**/translation.md` are reported for review and

@@ -76,6 +76,7 @@ def test_localize_auto_sync_template_matches_writer_policy(
     assert workflow["env"]["TRACKING_BRANCH"] == "master"
     assert workflow["env"]["TRANSLATION_CONFIG"] == "translation-config.yml"
     assert workflow["env"]["TRANSLATION_ROOT"] == "."
+    assert "if" not in workflow["jobs"]["sync-writer"]
     assert "translation-state-master" in workflow_text
     assert "translation-pr-{0}" in workflow_text
     assert "github.event_name != 'pull_request'" in workflow_text
@@ -89,6 +90,13 @@ def test_localize_auto_sync_template_matches_writer_policy(
     assert "git ls-remote --exit-code --heads origin" in workflow_text
     assert "steps.head-branch.outputs.exists == 'true'" in workflow_text
     assert "The pull request head branch no longer exists" in workflow_text
+    shared_sync_command = "tooling-repo/.venv/bin/dsw-km-sync-repository-shared-strings"
+    report_command = "tooling-repo/.venv/bin/dsw-km-report-github-translations"
+    assert shared_sync_command in workflow_text
+    assert workflow_text.index(shared_sync_command) < workflow_text.index(report_command)
+    assert 'git commit -m "chore(sync): expand shared translations"' in workflow_text
+    assert 'git push origin "HEAD:$HEAD_REF"' in workflow_text
+    assert "tree/shared_blocks/*/context.md | tree/*/translation.md" in workflow_text
     assert "tooling-repo/.venv/bin/dsw-km-report-github-translations" in workflow_text
     assert "steps.github-translations.outputs.has_translation_changes" in workflow_text
     assert "github-translation-report" in workflow_text

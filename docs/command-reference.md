@@ -59,6 +59,7 @@ Set `TRANSLATION_REPO_DIR` before running these targets.
 | `make repo-align` | Report files only | Compare Weblate, tree, final PO, and final KM outputs |
 | `make repo-scaffold-check` | Read-only | Verify managed docs and workflows match the tooling templates |
 | `make repo-scaffold-sync` | Filesystem writer | Refresh managed docs and workflows without changing config or translations |
+| `make repo-sync-shared-strings` | Filesystem writer | Expand canonical shared-block translations into referenced tree fields |
 | `make repo-github-translations` | Report files only | Compare GitHub translation edits with current Weblate |
 | `make repo-init` | Writes files | Initialize a new translation repository from templates and upstream inputs |
 | `make repo-pull-po` | Writes files | Refresh `sources/localize/` in the checkout |
@@ -225,6 +226,16 @@ make repo-scaffold-sync TRANSLATION_REPO_DIR=/path/to/translation-repo
 
 The sync target never writes `translation-config.yml`, `tree/`, `sources/`, or
 `builds/`.
+
+To reproduce the pull-request shared-translation expansion locally:
+
+```shell
+make repo-sync-shared-strings TRANSLATION_REPO_DIR=/path/to/translation-repo
+```
+
+This command reads repository paths and languages from
+`translation-config.yml`, updates only the shared-block contexts and referenced
+translation-tree fields, and never writes PO, KM, report, or review artifacts.
 
 To create a new translation repository, set `NEW_TRANSLATION_REPO_DIR`:
 

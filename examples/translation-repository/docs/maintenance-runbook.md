@@ -88,6 +88,7 @@ cd "$TOOL_REPO_DIR"
 make install-dev
 make repo-validate TRANSLATION_REPO_DIR="$TRANSLATION_REPO_DIR"
 make repo-scaffold-check TRANSLATION_REPO_DIR="$TRANSLATION_REPO_DIR"
+make repo-sync-shared-strings TRANSLATION_REPO_DIR="$TRANSLATION_REPO_DIR"
 make repo-align TRANSLATION_REPO_DIR="$TRANSLATION_REPO_DIR"
 ```
 
@@ -95,9 +96,12 @@ After the tooling repository changes its managed docs or workflow templates,
 refresh them with `make repo-scaffold-sync`. This command reads but never
 changes `translation-config.yml` or translation artifacts.
 
-Writer targets such as `make repo-sync` and `make repo-km-update` may commit and
-push from the checkout where they run. Use them only from a disposable checkout
-or when you intentionally want a Git update.
+`make repo-sync-shared-strings` updates only canonical shared-block context
+files and their referenced `tree/**/translation.md` fields. It does not commit
+or push. Other writer targets such as `make repo-sync` and
+`make repo-km-update` may commit and push from the checkout where they run. Use
+them only from a disposable checkout or when you intentionally want a Git
+update.
 
 ## Troubleshooting
 
@@ -111,7 +115,11 @@ or when you intentionally want a Git update.
   error.
 - A translation PR failed Markdown validation: open the GitHub translation
   report and restore the missing emphasis, link, list, or code formatting.
-- A translation PR failed shared-block validation: run shared-string sync so the
-  canonical block and every referenced `translation.md` field agree.
+- A same-repository translation PR failed shared-block validation: inspect the
+  shared-sync step first. To reproduce it locally, run
+  `make repo-sync-shared-strings TRANSLATION_REPO_DIR=/path/to/repo`.
+- A fork translation PR failed shared-block validation: run the same command
+  locally and commit its `tree/` changes to the fork branch; Actions never
+  writes to forks.
 - A translation PR conflicts with Weblate: resolve the reported entries before
   merging; the workflow does not choose a winner automatically.

@@ -27,6 +27,7 @@ DSW_KM_SYNC_LATEST_KM := $(VENV_BIN)/dsw-km-sync-latest-km
 DSW_KM_SYNC_GITHUB_RELEASE := $(VENV_BIN)/dsw-km-sync-github-release
 DSW_KM_SYNC_GIT_SOURCE := $(VENV_BIN)/dsw-km-sync-git-source
 DSW_KM_SYNC_LOCALIZE := $(VENV_BIN)/dsw-km-sync-localize
+DSW_KM_SYNC_REPOSITORY_SHARED_STRINGS := $(VENV_BIN)/dsw-km-sync-repository-shared-strings
 DSW_KM_SYNC_SHARED_STRINGS := $(VENV_BIN)/dsw-km-sync-shared-strings
 DSW_KM_TREE_TO_PO := $(VENV_BIN)/dsw-km-tree-to-po
 DSW_KM_UPSTREAM_SMOKE := $(VENV_BIN)/dsw-km-upstream-smoke
@@ -96,7 +97,7 @@ DOCS_BUILD ?= docs/sphinx/_build/html
 .PHONY: repo-validate repo-pull-po repo-status repo-checks repo-align
 .PHONY: source-repo-init source-repo-prepare source-repo-validate
 .PHONY: repo-github-source-check repo-github-source-sync
-.PHONY: repo-scaffold-check repo-scaffold-sync
+.PHONY: repo-scaffold-check repo-scaffold-sync repo-sync-shared-strings
 .PHONY: repo-github-translations repo-import-github-translations
 .PHONY: repo-init repo-sync repo-sync-branch repo-km-status repo-km-pull repo-km-update upstream-smoke
 .PHONY: export-tree export-tree-force status localize-status sync sync-watch
@@ -122,6 +123,7 @@ help:
 	'  repo-align         Verify Weblate/tree/final PO/final KM alignment' \
 	'  repo-scaffold-check Verify managed docs and workflows match their templates' \
 	'  repo-scaffold-sync Writer: refresh managed docs and workflows only' \
+	'  repo-sync-shared-strings Writer: expand canonical shared translations into the tree' \
 	'  repo-github-translations Report GitHub translation changes against Weblate' \
 	'  repo-init          Initialize a new translation repo; set NEW_TRANSLATION_REPO_DIR=/path' \
 	'  source-repo-init   Initialize a source KM repo; use the packaged CLI for identity arguments' \
@@ -165,6 +167,7 @@ help-all:
 	'  repo-align         Verify output alignment in TRANSLATION_REPO_DIR' \
 	'  repo-scaffold-check Verify managed docs and workflows in TRANSLATION_REPO_DIR' \
 	'  repo-scaffold-sync Writer: refresh managed docs and workflows in TRANSLATION_REPO_DIR' \
+	'  repo-sync-shared-strings Writer: expand canonical shared translations into the tree' \
 	'  repo-github-translations Report GitHub translation changes against Weblate' \
 	'  repo-init          Initialize NEW_TRANSLATION_REPO_DIR from templates and upstream inputs' \
 	'  source-repo-init   Initialize NEW_SOURCE_REPO_DIR from source KM templates' \
@@ -307,6 +310,11 @@ repo-scaffold-sync: venv require-translation-repo
 	$(DSW_KM_SCAFFOLD) sync \
 		--repo-root "$(TRANSLATION_REPO_DIR)" \
 		--tooling-repo "$(CURDIR)" \
+		--config "$(TRANSLATION_CONFIG)"
+
+repo-sync-shared-strings: venv require-translation-repo
+	$(DSW_KM_SYNC_REPOSITORY_SHARED_STRINGS) \
+		--repo-root "$(TRANSLATION_REPO_DIR)" \
 		--config "$(TRANSLATION_CONFIG)"
 
 repo-github-translations: venv require-translation-repo

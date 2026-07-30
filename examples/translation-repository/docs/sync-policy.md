@@ -38,19 +38,24 @@ Only entries that are safe against the current Weblate state are imported. If
 GitHub and Weblate changed the same entry differently, the import workflow
 fails and writes a conflict report. It does not use timestamps or a
 last-writer-wins rule to choose between reviewers. Pull-request and post-merge
-checks also reject translations that do not preserve source Markdown
-formatting and boundary whitespace, or leave canonical shared blocks
-inconsistent with their expanded tree fields. After upload, the workflow
-downloads Weblate again and fails unless every expected entry is present.
+checks also reject translations that do not preserve source Markdown formatting
+and boundary whitespace. For same-repository pull requests, canonical
+`tree/shared_blocks/*/context.md` edits are expanded into every referenced
+`translation.md` field and committed to the pull-request branch before that
+report runs. The reporter still rejects any inconsistency the deterministic
+sync cannot resolve. After upload, the workflow downloads Weblate again and
+fails unless every expected entry is present.
 
 ## Writer Workflows
 
 - `localize_auto_sync.yml` commits directly to the tracking branch on scheduled
   runs when tracked files changed.
-- Pull requests receive a read-only GitHub translation and Markdown format
-  report. Conflicts and validation errors fail the pull-request check.
-- Same-repository pull requests that do not edit translation text can receive a
-  sync commit before merge.
+- Same-repository pull requests first receive a deterministic shared-translation
+  expansion commit when needed, followed by the GitHub translation and Markdown
+  format report.
+- Fork pull requests receive the same report but remain read-only.
+- Same-repository pull requests that do not edit translation text can also
+  receive a Weblate sync commit before merge.
 - Delayed pull-request runs compare against the pull request base commit and
   skip writer sync if the head branch no longer exists.
 - `github_translation_import.yml` imports accepted GitHub translation edits to

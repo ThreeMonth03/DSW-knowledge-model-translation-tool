@@ -18,6 +18,11 @@ The workflows that write `master` or Weblate share the
 `translation-state-master` concurrency group with `queue: max`. Keep both
 settings aligned so later runs do not replace pending writer jobs.
 
+On pull requests, `localize_auto_sync.yml` writes only when the head branch
+belongs to this repository and still exists. Its shared-translation step
+commits only canonical `tree/shared_blocks/*/context.md` files and referenced
+`tree/**/translation.md` files. Fork pull requests remain read-only.
+
 ## Actions Secrets
 
 Configure these Actions repository secrets:

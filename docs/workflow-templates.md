@@ -22,7 +22,7 @@ in that config rather than hard-coding them into workflow steps.
 | Template | Installs In | Writes Git? | Secrets | Use |
 | --- | --- | --- | --- | --- |
 | [`validate_translation_config_template.yml`][validate-template] | Translation repository | No | None | Validate config on pushes, pull requests, or manual runs. |
-| [`localize_auto_sync_template.yml`][auto-sync-template] | Translation repository | Yes | None | Pull Weblate into Git, rebuild outputs, and commit changed files. PRs with translation edits get a format-validating report instead of writer sync. |
+| [`localize_auto_sync_template.yml`][auto-sync-template] | Translation repository | Yes | None | Expand shared translations in same-repository PRs, report translation edits, and otherwise pull Weblate into Git and rebuild outputs. |
 | [`github_translation_import_template.yml`][github-import-template] | Translation repository | Yes | `LOCALIZE_API_TOKEN` | After merge, import accepted GitHub translation edits to Weblate, then sync Weblate back to Git. |
 | [`localize_status_report_template.yml`][status-template] | Translation repository | No | Optional `LOCALIZE_API_TOKEN` | Report Weblate PO health and website-side checks. |
 | [`localize_alignment_report_template.yml`][alignment-template] | Translation repository | No | None | Verify Weblate, tree, final PO, and final KM outputs still match. |
@@ -64,9 +64,12 @@ verifies that Weblate applied every uploaded entry.
 
 `localize_auto_sync_template.yml` compares pull-request translation reports
 against the pull request's base commit, not whatever `master` contains when a
-runner starts. It also checks that a same-repository pull-request branch still
-exists before attempting writer sync. This keeps delayed PR runs from failing
-after the PR was already merged and its branch deleted.
+runner starts. Before reporting, it expands canonical shared-block edits into
+their referenced tree fields and commits those deterministic changes to a
+same-repository pull-request branch. Fork pull requests remain read-only. The
+workflow also checks that a same-repository pull-request branch still exists
+before attempting either writer. This keeps delayed PR runs from failing after
+the PR was already merged and its branch deleted.
 
 All templates that write the tracking branch or Weblate share a retained
 `translation-state-*` concurrency queue. Keep both the group and `queue: max`
