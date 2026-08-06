@@ -273,15 +273,11 @@ def _authenticated_downloader(
 
     trusted_origin = _url_origin(trusted_api_origin)
     if _url_origin(api_url) != trusted_origin:
-        raise ValueError(
-            "Refusing to send the Weblate API token to an untrusted origin"
-        )
+        raise ValueError("Refusing to send the Weblate API token to an untrusted origin")
 
     def download(url: str) -> bytes:
         if _url_origin(url) != trusted_origin:
-            raise ValueError(
-                "Refusing to send the Weblate API token to an untrusted origin"
-            )
+            raise ValueError("Refusing to send the Weblate API token to an untrusted origin")
         request = urllib.request.Request(
             url,
             headers={"Authorization": bearer_authorization_header(token)},
