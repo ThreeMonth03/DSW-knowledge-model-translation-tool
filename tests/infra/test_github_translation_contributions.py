@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -16,6 +17,7 @@ from dsw_km_translation_tool.cli import (
 from dsw_km_translation_tool.github_translation_contributions import (
     CONFLICT_DECISION,
     IMPORT_DECISION,
+    GitHubTranslationContributionError,
     build_github_translation_report,
     write_import_po,
 )
@@ -44,6 +46,33 @@ def test_github_translation_report_marks_safe_imports(workspace: Path) -> None:
     assert report.importable_entries == 1
     assert report.decisions[0].decision == IMPORT_DECISION
     assert report.decisions[0].github == "GitHub 新翻譯"
+
+
+def test_github_translation_report_rejects_unmanifested_spoof_file(
+    workspace: Path,
+) -> None:
+    """Verify an arbitrary tree file cannot impersonate a canonical node."""
+
+    repo = initialize_translation_repo(workspace)
+    base_ref = commit_translation(repo, "base", "舊翻譯")
+    spoof_path = repo / "tree" / "zzzz" / "translation.md"
+    spoof_path.parent.mkdir(parents=True)
+    spoof_path.write_text(
+        render_translation_markdown("ATTACKER TRANSLATION"), encoding="utf-8"
+    )
+    run_git(repo, "add", "tree/zzzz/translation.md")
+    run_git(repo, "commit", "-m", "spoof")
+    head_ref = run_git(repo, "rev-parse", "HEAD").stdout.strip()
+
+    with pytest.raises(
+        GitHubTranslationContributionError, match="not a canonical manifest node"
+    ):
+        build_github_translation_report(
+            repo_root=repo,
+            base_ref=base_ref,
+            head_ref=head_ref,
+            latest_po_path=write_latest_po(workspace / "latest.po", "舊翻譯"),
+        )
 
 
 def test_github_translation_report_marks_conflicts(workspace: Path) -> None:
@@ -107,7 +136,9 @@ def test_github_translation_report_rejects_unsynced_shared_blocks(
     assert "Run shared-string sync" in report.shared_block_issues[0].message
 
 
-def test_github_translation_report_accepts_synced_shared_blocks(workspace: Path) -> None:
+def test_github_translation_report_accepts_synced_shared_blocks(
+    workspace: Path,
+) -> None:
     """Verify canonical shared edits pass after their tree fields are expanded."""
 
     repo = initialize_translation_repo(workspace)
@@ -581,7 +612,9 @@ def prepare_markdown_error_case(workspace: Path) -> tuple[Path, str, str, Path]:
 
     source = "*The **processor** definition.*"
     repo = initialize_translation_repo(workspace)
-    base_ref = commit_translation(repo, "base", "*舊的 **資料處理者** 定義。*", source=source)
+    base_ref = commit_translation(
+        repo, "base", "*舊的 **資料處理者** 定義。*", source=source
+    )
     head_ref = commit_translation(
         repo,
         "github",
@@ -618,11 +651,32 @@ def commit_translation(
 
     translation_path = repo / "tree" / "node" / "translation.md"
     translation_path.parent.mkdir(parents=True, exist_ok=True)
+    (translation_path.parent / "_uuid.txt").write_text(TEST_UUID, encoding="utf-8")
+    (repo / "tree" / "_translation_tree.json").write_text(
+        json.dumps(
+            {
+                "rootPaths": ["node"],
+                "nodes": {
+                    TEST_UUID: {
+                        "path": "node",
+                        "fields": ["title"],
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
     translation_path.write_text(
         render_translation_markdown(target, source=source),
         encoding="utf-8",
     )
-    run_git(repo, "add", "tree/node/translation.md")
+    run_git(
+        repo,
+        "add",
+        "tree/node/translation.md",
+        "tree/node/_uuid.txt",
+        "tree/_translation_tree.json",
+    )
     run_git(repo, "commit", "-m", message)
     return run_git(repo, "rev-parse", "HEAD").stdout.strip()
 
