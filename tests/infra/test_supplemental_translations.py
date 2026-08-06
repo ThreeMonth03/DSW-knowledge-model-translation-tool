@@ -5,7 +5,7 @@ from __future__ import annotations
 PHASE_UUID = "b101f2d0-2476-452d-aa8d-95a41a02b52c"
 
 
-def write_form(directory, source: str, translation: str) -> None:
+def write_form(directory, source: str, translation: str, field: str = "title") -> None:
     """Write one strict supplemental phase translation form."""
 
     form_dir = directory / PHASE_UUID
@@ -17,7 +17,7 @@ def write_form(directory, source: str, translation: str) -> None:
 - Event Type: `AddPhaseEvent`
 - Edit only the `Translation (zh_Hant)` blocks below.
 
-## title
+## {field}
 
 ### Source (en)
 
@@ -93,3 +93,36 @@ def test_build_km_rejects_stale_supplemental_source(
         assert "Source mismatch" in str(error)
     else:
         raise AssertionError("Expected stale supplemental source validation to fail")
+
+
+def test_build_km_rejects_structural_supplemental_field(
+    workflow,
+    po_path,
+    model_path,
+    workspace,
+) -> None:
+    """Verify supplemental forms cannot rewrite KM relationship fields."""
+
+    supplemental_dir = workspace / "supplemental"
+    write_form(
+        supplemental_dir,
+        source="b101f2d0-2476-452d-aa8d-95a41a02b52c",
+        translation="adc9133d-afcd-4616-9aea-db5f475898a2",
+        field="requiredPhaseUuid",
+    )
+
+    try:
+        workflow.build_km_from_po(
+            translated_po_path=str(po_path),
+            original_model_path=str(model_path),
+            out_model_path=str(workspace / "translated.km"),
+            supplemental_translations_dir=str(supplemental_dir),
+        )
+    except ValueError as error:
+        assert "Unsupported supplemental translation field 'requiredPhaseUuid'" in str(
+            error
+        )
+    else:
+        raise AssertionError(
+            "Expected structural supplemental field validation to fail"
+        )

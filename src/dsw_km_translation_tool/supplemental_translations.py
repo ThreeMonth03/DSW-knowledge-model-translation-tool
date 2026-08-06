@@ -8,6 +8,10 @@ from uuid import UUID
 from .data_models import PoEntry
 from .tree_support.document import TranslationMarkdownDocument
 
+SUPPLEMENTAL_TRANSLATION_FIELDS = frozenset(
+    {"advice", "description", "label", "name", "text", "title", "url"}
+)
+
 
 class SupplementalTranslationCatalog:
     """Load strict Markdown translation forms from a dedicated directory."""
@@ -28,7 +32,9 @@ class SupplementalTranslationCatalog:
 
         root = Path(directory)
         if not root.is_dir():
-            raise ValueError(f"Supplemental translation directory does not exist: {root}")
+            raise ValueError(
+                f"Supplemental translation directory does not exist: {root}"
+            )
 
         entries: list[PoEntry] = []
         seen: set[tuple[str, str]] = set()
@@ -43,6 +49,12 @@ class SupplementalTranslationCatalog:
 
             fields = self.document.parse(str(translation_path))
             for field, state in fields.items():
+                if field not in SUPPLEMENTAL_TRANSLATION_FIELDS:
+                    allowed = ", ".join(sorted(SUPPLEMENTAL_TRANSLATION_FIELDS))
+                    raise ValueError(
+                        f"Unsupported supplemental translation field {field!r} in "
+                        f"{translation_path}; allowed fields: {allowed}"
+                    )
                 key = (entity_uuid, field)
                 if key in seen:
                     raise ValueError(
