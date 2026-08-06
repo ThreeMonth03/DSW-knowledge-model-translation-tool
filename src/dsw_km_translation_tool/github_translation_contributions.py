@@ -5,10 +5,10 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import asdict, dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from .command import CommandRunner, default_command_runner, make_checked_runner
-from .constants import TRANSLATION_FILENAME
+from .constants import MANIFEST_NAME, TRANSLATION_FILENAME, UUID_FILENAME
 from .po_support.render import PoSectionRenderer
 from .po_support.state import PoEntryState, parse_po_entry_states
 from .shared_block_consistency import (
@@ -234,24 +234,112 @@ def read_tree_entries_from_git_ref(
         cwd=repo_root,
         description=f"list translation files in {ref}",
     )
+    manifest_path = (tree_path / MANIFEST_NAME).as_posix()
+    manifest = _load_tree_manifest(
+        repo_root=repo_root,
+        ref=ref,
+        path=manifest_path,
+        runner=runner,
+    )
+    canonical_paths = _canonical_translation_paths(manifest, relative_tree, manifest_path)
     entries: dict[PoKey, TreeTranslationEntry] = {}
     for path_text in result.stdout.splitlines():
         if not path_text.endswith(f"/{TRANSLATION_FILENAME}"):
             continue
+        entity_uuid = canonical_paths.get(path_text)
+        if entity_uuid is None:
+            raise GitHubTranslationContributionError(
+                f"Translation file is not a canonical manifest node in {ref}: {path_text}"
+            )
+        uuid_path = str(PurePosixPath(path_text).with_name(UUID_FILENAME))
+        stored_uuid = _git_show_text(
+            repo_root=repo_root,
+            ref=ref,
+            path=uuid_path,
+            runner=runner,
+        ).strip()
+        if stored_uuid != entity_uuid:
+            raise GitHubTranslationContributionError(
+                f"UUID metadata mismatch in {ref}: {uuid_path} contains {stored_uuid!r}, "
+                f"expected {entity_uuid!r}"
+            )
         document_text = _git_show_text(
             repo_root=repo_root,
             ref=ref,
             path=path_text,
             runner=runner,
         )
-        for entry in parse_translation_markdown_text(
+        parsed_entries = parse_translation_markdown_text(
             document_text,
             path_text,
             source_lang=source_lang,
             target_lang=target_lang,
-        ):
+        )
+        if any(entry.uuid != entity_uuid for entry in parsed_entries):
+            raise GitHubTranslationContributionError(
+                f"UUID header mismatch in {ref}: {path_text} does not represent "
+                f"manifest node {entity_uuid}"
+            )
+        for entry in parsed_entries:
+            if entry.key in entries:
+                previous = entries[entry.key]
+                raise GitHubTranslationContributionError(
+                    f"Duplicate translation key {entry.uuid}:{entry.field} in {ref}: "
+                    f"{previous.path} and {entry.path}"
+                )
             entries[entry.key] = entry
     return entries
+
+
+def _load_tree_manifest(
+    *, repo_root: Path, ref: str, path: str, runner: CommandRunner
+) -> dict[str, object]:
+    """Load the canonical translation-tree manifest at a Git ref."""
+
+    text = _git_show_text(repo_root=repo_root, ref=ref, path=path, runner=runner)
+    try:
+        manifest = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise GitHubTranslationContributionError(
+            f"Invalid translation tree manifest in {ref}: {path}: {exc}"
+        ) from exc
+    if not isinstance(manifest, dict) or not isinstance(manifest.get("nodes"), dict):
+        raise GitHubTranslationContributionError(
+            f"Invalid translation tree manifest in {ref}: {path} must contain a nodes object"
+        )
+    return manifest
+
+
+def _canonical_translation_paths(
+    manifest: dict[str, object], relative_tree: str, manifest_path: str
+) -> dict[str, str]:
+    """Map manifest-authorized translation paths to their node UUIDs."""
+
+    paths: dict[str, str] = {}
+    nodes = manifest["nodes"]
+    assert isinstance(nodes, dict)
+    for entity_uuid, node in nodes.items():
+        if not isinstance(entity_uuid, str) or not isinstance(node, dict):
+            raise GitHubTranslationContributionError(
+                f"Invalid node entry in translation tree manifest: {manifest_path}"
+            )
+        node_path = node.get("path")
+        if not isinstance(node_path, str) or not node_path:
+            raise GitHubTranslationContributionError(
+                f"Invalid path for manifest node {entity_uuid}: {manifest_path}"
+            )
+        relative_path = PurePosixPath(node_path)
+        if relative_path.is_absolute() or ".." in relative_path.parts:
+            raise GitHubTranslationContributionError(
+                f"Unsafe path for manifest node {entity_uuid}: {node_path}"
+            )
+        translation_path = str(PurePosixPath(relative_tree) / relative_path / TRANSLATION_FILENAME)
+        if translation_path in paths:
+            raise GitHubTranslationContributionError(
+                f"Duplicate node path in translation tree manifest: {node_path}"
+            )
+        paths[translation_path] = entity_uuid
+    return paths
 
 
 def parse_translation_markdown_text(
