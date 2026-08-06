@@ -33,9 +33,11 @@ jobs:
 
       - name: Fetch tracking branch for recovery restores
         working-directory: translation-repo
+        env:
+          REPOSITORY: ${{ github.repository }}
         run: >-
-          git fetch "https://github.com/${{ github.repository }}.git"
-          "${{ env.TRACKING_BRANCH }}:refs/remotes/base/${{ env.TRACKING_BRANCH }}"
+          git fetch "https://github.com/$REPOSITORY.git"
+          "$TRACKING_BRANCH:refs/remotes/base/$TRACKING_BRANCH"
 
       - name: Checkout DSW KM Translation Tool
         uses: actions/checkout@v5
@@ -58,8 +60,8 @@ jobs:
           tooling-repo/.venv/bin/dsw-km-sync-localize
           --host-repo "$GITHUB_WORKSPACE/translation-repo"
           --tooling-repo "$GITHUB_WORKSPACE/tooling-repo"
-          --config "${{ env.TRANSLATION_CONFIG }}"
-          --translation-root "${{ env.TRANSLATION_ROOT }}"
-          --target-ref "${{ env.TRACKING_BRANCH }}"
-          --restore-source-ref "base/${{ env.TRACKING_BRANCH }}"
+          --config "$TRANSLATION_CONFIG"
+          --translation-root "$TRANSLATION_ROOT"
+          --target-ref "$TRACKING_BRANCH"
+          --restore-source-ref "base/$TRACKING_BRANCH"
           --mode "schedule"

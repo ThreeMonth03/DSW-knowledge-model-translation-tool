@@ -71,7 +71,7 @@ jobs:
         run: >-
           tooling-repo/.venv/bin/dsw-km-import-github-translations
           --repo-root "$GITHUB_WORKSPACE/translation-repo"
-          --config "${{ env.TRANSLATION_CONFIG }}"
+          --config "$TRANSLATION_CONFIG"
           --base-ref "$BASE_REF"
           --head-ref "$HEAD_REF"
           --json-out "$RUNNER_TEMP/github_translation_import.json"
@@ -85,10 +85,10 @@ jobs:
           tooling-repo/.venv/bin/dsw-km-sync-localize
           --host-repo "$GITHUB_WORKSPACE/translation-repo"
           --tooling-repo "$GITHUB_WORKSPACE/tooling-repo"
-          --config "${{ env.TRANSLATION_CONFIG }}"
-          --translation-root "${{ env.TRANSLATION_ROOT }}"
-          --target-ref "${{ env.TRACKING_BRANCH }}"
-          --restore-source-ref "origin/${{ env.TRACKING_BRANCH }}"
+          --config "$TRANSLATION_CONFIG"
+          --translation-root "$TRANSLATION_ROOT"
+          --target-ref "$TRACKING_BRANCH"
+          --restore-source-ref "origin/$TRACKING_BRANCH"
           --mode schedule
 
       - name: Upload GitHub translation import report

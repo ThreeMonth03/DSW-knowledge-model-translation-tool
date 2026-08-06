@@ -217,6 +217,7 @@ def test_config_rejects_untrusted_tooling_repository(workspace: Path) -> None:
         ("tooling.ref", "main\ninjected: value"),
         ("branches.tracking_branch", "translation/latest; echo pwned"),
         ("branches.tracking_branch", "translation/../main"),
+        ("tooling.ref", "$(printenv${IFS}DSW_REGISTRY_TOKEN)"),
     ],
 )
 def test_config_rejects_unsafe_workflow_refs(workspace: Path, field: str, value: str) -> None:

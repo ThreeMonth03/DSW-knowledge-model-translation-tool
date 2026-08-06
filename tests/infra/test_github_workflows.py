@@ -78,7 +78,7 @@ def test_localize_auto_sync_template_matches_writer_policy(
     assert workflow["env"]["TRANSLATION_ROOT"] == "."
     assert "if" not in workflow["jobs"]["sync-writer"]
     assert "translation-state-master" in workflow_text
-    assert "refs/remotes/base/${{ env.TRACKING_BRANCH }}" in workflow_text
+    assert "refs/remotes/base/$TRACKING_BRANCH" in workflow_text
     assert "tooling-repo/.venv/bin/dsw-km-sync-localize" in workflow_text
     assert "tooling-repo/src/" not in workflow_text
     assert "dsw-km-discover-versions" not in workflow_text
@@ -90,7 +90,7 @@ def test_localize_auto_sync_template_matches_writer_policy(
     assert "--skip-without-token" not in workflow_text
     assert "reviews/km_version_discovery.json" not in workflow_text
     assert "--restore-source-ref" in workflow_text
-    assert "base/${{ env.TRACKING_BRANCH }}" in workflow_text
+    assert "base/$TRACKING_BRANCH" in workflow_text
     assert "github.event.pull_request" not in workflow_text
 
 
@@ -316,3 +316,28 @@ def test_source_workflows_verify_previous_github_release(repo_root: Path) -> Non
         text = (template_root / name).read_text(encoding="utf-8")
         assert "GITHUB_TOKEN: ${{ github.token }}" in text
         assert '--github-repository "$GITHUB_REPOSITORY"' in text
+
+
+def test_workflow_run_blocks_do_not_interpolate_repository_config(
+    repo_root: Path,
+) -> None:
+    """Repository-config values must reach shells through quoted variables."""
+
+    template_names = (
+        "github_translation_import_template.yml",
+        "km_version_auto_update_template.yml",
+        "localize_alignment_report_template.yml",
+        "localize_auto_sync_template.yml",
+        "localize_status_report_template.yml",
+    )
+    expression_prefix = "$" + "{{ env."
+    for template_name in template_names:
+        workflow, _ = load_rendered_workflow(repo_root, template_name)
+        run_blocks = [
+            step["run"]
+            for job in workflow["jobs"].values()
+            for step in job["steps"]
+            if "run" in step
+        ]
+        assert run_blocks
+        assert all(expression_prefix not in run_block for run_block in run_blocks)
