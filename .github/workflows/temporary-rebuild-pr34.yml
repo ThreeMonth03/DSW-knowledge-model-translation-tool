@@ -95,7 +95,7 @@ jobs:
 
           make install-dev BOOTSTRAP_PYTHON=python
           make format
-          python -m pytest tests/infra/test_github_workflows.py
+          .venv/bin/python -m pytest tests/infra/test_github_workflows.py
           git diff --check
 
           git rm -- .github/workflows/temporary-rebuild-pr34.yml
