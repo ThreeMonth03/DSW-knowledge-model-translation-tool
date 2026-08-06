@@ -227,6 +227,29 @@ def test_translation_fixture_outline_matches_current_tree_progress(
         generated_outline_path.unlink(missing_ok=True)
 
 
+def test_outline_generation_does_not_follow_output_symlink(
+    workflow,
+    translation_tree_dir,
+    tmp_path,
+) -> None:
+    """Verify that generating an outline cannot clobber a symlink target."""
+
+    victim_path = tmp_path / "victim.txt"
+    victim_path.write_text("do not overwrite\n", encoding="utf-8")
+    outline_path = tmp_path / "outline.md"
+    outline_path.symlink_to(victim_path)
+
+    result = build_outline_markdown(
+        workflow=workflow,
+        tree_dir=translation_tree_dir,
+        output_outline_path=outline_path,
+    )
+
+    assert victim_path.read_text(encoding="utf-8") == "do not overwrite\n"
+    assert not outline_path.is_symlink()
+    assert outline_path.read_text(encoding="utf-8") == result.markdown_text
+
+
 def test_translation_fixture_shared_block_translations_are_fully_synchronized_in_tree(
     workflow,
     po_path,
