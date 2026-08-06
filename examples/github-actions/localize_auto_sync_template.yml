@@ -67,8 +67,10 @@ jobs:
           github.event_name == 'pull_request' &&
           github.event.pull_request.head.repo.full_name == github.repository
         working-directory: translation-repo
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
-          if git ls-remote --exit-code --heads origin "${{ github.event.pull_request.head.ref }}" >/dev/null; then
+          if git ls-remote --exit-code --heads origin "$HEAD_REF" >/dev/null; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -188,13 +190,15 @@ jobs:
           steps.github-translations.outputs.has_translation_changes != 'true')
         env:
           SYNC_MODE: ${{ github.event_name == 'pull_request' && 'pull_request' || 'schedule' }}
+          TARGET_REF: >-
+            ${{ github.event_name == 'pull_request' &&
+            github.event.pull_request.head.ref || env.TRACKING_BRANCH }}
         run: >-
           tooling-repo/.venv/bin/dsw-km-sync-localize
           --host-repo "$GITHUB_WORKSPACE/translation-repo"
           --tooling-repo "$GITHUB_WORKSPACE/tooling-repo"
           --config "${{ env.TRANSLATION_CONFIG }}"
           --translation-root "${{ env.TRANSLATION_ROOT }}"
-          --target-ref "${{ github.event_name == 'pull_request' &&
-          github.event.pull_request.head.ref || env.TRACKING_BRANCH }}"
+          --target-ref "$TARGET_REF"
           --restore-source-ref "base/${{ env.TRACKING_BRANCH }}"
           --mode "$SYNC_MODE"
