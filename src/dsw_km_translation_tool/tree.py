@@ -110,8 +110,26 @@ class TranslationTreeRepository:
         if not manifest:
             return
 
+        output_dir = Path(out_dir).resolve()
+        previous_roots: list[Path] = []
         for relative_root in manifest.get("rootPaths", []):
-            absolute_root = Path(out_dir) / relative_root
+            if not isinstance(relative_root, str):
+                raise ValueError("Tree manifest root paths must be strings")
+            root_path = Path(relative_root)
+            if root_path.is_absolute() or ".." in root_path.parts:
+                raise ValueError(f"Unsafe tree manifest root path: {relative_root!r}")
+
+            unresolved_root = output_dir / root_path
+            absolute_root = unresolved_root.resolve()
+            if (
+                absolute_root == output_dir
+                or not absolute_root.is_relative_to(output_dir)
+                or unresolved_root.is_symlink()
+            ):
+                raise ValueError(f"Unsafe tree manifest root path: {relative_root!r}")
+            previous_roots.append(absolute_root)
+
+        for absolute_root in previous_roots:
             if not absolute_root.is_dir():
                 continue
             for current_root, dirnames, filenames in os.walk(
