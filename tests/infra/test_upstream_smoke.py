@@ -75,6 +75,36 @@ def test_upstream_smoke_reuses_matching_cached_km_bundle(
     assert second.km_bundle_changed is False
 
 
+def test_upstream_smoke_refreshes_changed_cached_km_bundle(
+    workspace: Path,
+    po_path: Path,
+    model_path: Path,
+) -> None:
+    """Verify a stale disposable cache is refreshed before smoke checks."""
+
+    config_template = workspace / "template.yml"
+    work_dir = workspace / "upstream-smoke"
+    target_path = work_dir / "sources/knowledge-models/dsw-root-2.7.0/dsw-root-2.7.0.km"
+    write_config(config_template)
+    target_path.parent.mkdir(parents=True)
+    target_path.write_bytes(b"stale cached bundle")
+
+    result = run_upstream_smoke(
+        work_dir=work_dir,
+        config_template_path=config_template,
+        registry_token="secret",
+        registry_downloader=lambda _url: registry_payload("2.7.0"),
+        bundle_downloader=lambda _url, _token: model_path.read_bytes(),
+        localize_downloader=lambda _url: po_path.read_bytes(),
+    )
+
+    assert result.status == "passed"
+    assert result.km_bundle_initialized is False
+    assert result.km_bundle_changed is True
+    assert result.alignment_aligned is True
+    assert target_path.read_bytes() == model_path.read_bytes()
+
+
 def test_upstream_smoke_can_skip_when_registry_token_is_missing(
     workspace: Path,
 ) -> None:

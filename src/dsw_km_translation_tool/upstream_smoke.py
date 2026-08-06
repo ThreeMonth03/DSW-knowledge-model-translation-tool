@@ -64,8 +64,8 @@ def run_upstream_smoke(
 
     The smoke workspace is disposable and cacheable. The KM bundle is written
     under ``sources/knowledge-models`` and reused when the Registry returns the
-    same bytes. The Weblate PO is still downloaded on every run so the check
-    always exercises the latest website state.
+    same content. Changed upstream content refreshes the cached snapshot before
+    the full translation and alignment checks run.
     """
 
     resolved_work_dir = work_dir.resolve()
@@ -103,6 +103,7 @@ def run_upstream_smoke(
         repo_root=resolved_work_dir,
         token=registry_token,
         downloader=bundle_downloader,
+        allow_existing_change=True,
     )
     localize_result = pull_localize_po(
         config_path=config_path,

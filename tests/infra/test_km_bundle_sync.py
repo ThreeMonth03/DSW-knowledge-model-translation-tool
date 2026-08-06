@@ -66,6 +66,30 @@ def test_pull_km_bundle_leaves_matching_existing_snapshot(workspace: Path) -> No
     assert target_path.read_bytes() == b"same bundle"
 
 
+def test_pull_km_bundle_accepts_equivalent_json_snapshot(workspace: Path) -> None:
+    """Verify JSON serialization differences do not violate immutability."""
+
+    config_path = workspace / "translation-config.yml"
+    write_config(config_path)
+    target_path = workspace / "sources/knowledge-models/dsw-root-2.7.0/dsw-root-2.7.0.km"
+    target_path.parent.mkdir(parents=True)
+    cached = b'{\n  "packages": [{"version": "2.7.0", "events": []}],\n  "name": "Root"\n}\n'
+    downloaded = b'{"name":"Root","packages":[{"events":[],"version":"2.7.0"}]}'
+    target_path.write_bytes(cached)
+
+    result = pull_km_bundle(
+        config_path=config_path,
+        repo_root=workspace,
+        token="secret",
+        downloader=lambda _url, _token: downloaded,
+    )
+
+    assert result.changed is False
+    assert result.initialized is False
+    assert result.previous_sha256 != result.sha256
+    assert target_path.read_bytes() == cached
+
+
 def test_pull_km_bundle_refuses_changed_existing_snapshot(workspace: Path) -> None:
     """Verify existing version snapshots are immutable by default."""
 
@@ -75,7 +99,7 @@ def test_pull_km_bundle_refuses_changed_existing_snapshot(workspace: Path) -> No
     target_path.parent.mkdir(parents=True)
     target_path.write_bytes(b"old bundle")
 
-    with pytest.raises(KmRegistryError, match="Refusing to overwrite"):
+    with pytest.raises(KmRegistryError, match="Refusing to overwrite") as error:
         pull_km_bundle(
             config_path=config_path,
             repo_root=workspace,
@@ -83,6 +107,8 @@ def test_pull_km_bundle_refuses_changed_existing_snapshot(workspace: Path) -> No
             downloader=lambda _url, _token: b"new bundle",
         )
 
+    assert "Previous SHA256:" in str(error.value)
+    assert "downloaded SHA256:" in str(error.value)
     assert target_path.read_bytes() == b"old bundle"
 
 

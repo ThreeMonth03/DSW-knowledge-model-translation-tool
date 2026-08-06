@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import urllib.parse
 import urllib.request
 from collections.abc import Callable
@@ -46,9 +47,9 @@ def pull_km_bundle(
 ) -> KmBundlePullResult:
     """Pull one KM bundle snapshot into the configured source path.
 
-    Existing bundle snapshots are treated as immutable by default. If the
-    Registry returns different bytes for a version that already exists locally,
-    this function raises instead of overwriting the source snapshot.
+    Existing bundle snapshots are treated as semantically immutable by default.
+    Serialization-only JSON differences are accepted, while content changes
+    raise instead of overwriting the source snapshot.
     """
 
     if not token.strip():
@@ -70,7 +71,9 @@ def pull_km_bundle(
     previous_bytes = target_path.read_bytes() if target_path.exists() else None
     previous_hash = _sha256(previous_bytes) if previous_bytes is not None else None
 
-    if previous_bytes == downloaded:
+    if previous_bytes == downloaded or (
+        previous_bytes is not None and _equivalent_json(previous_bytes, downloaded)
+    ):
         return KmBundlePullResult(
             version=version,
             coordinate=coordinate,
@@ -86,7 +89,8 @@ def pull_km_bundle(
     if previous_bytes is not None and not allow_existing_change:
         raise KmRegistryError(
             "Registry returned a different KM bundle for an existing version "
-            f"{coordinate}. Refusing to overwrite {target_path}."
+            f"{coordinate}. Refusing to overwrite {target_path}. "
+            f"Previous SHA256: {previous_hash}; downloaded SHA256: {downloaded_hash}."
         )
 
     target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -101,6 +105,26 @@ def pull_km_bundle(
         bytes_downloaded=len(downloaded),
         sha256=downloaded_hash,
         previous_sha256=previous_hash,
+    )
+
+
+def _equivalent_json(left: bytes, right: bytes) -> bool:
+    left_canonical = _canonical_json(left)
+    if left_canonical is None:
+        return False
+    return left_canonical == _canonical_json(right)
+
+
+def _canonical_json(payload: bytes) -> str | None:
+    try:
+        parsed = json.loads(payload)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    return json.dumps(
+        parsed,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
     )
 
 
