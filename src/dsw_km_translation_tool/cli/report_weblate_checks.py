@@ -68,6 +68,11 @@ def build_argument_parser() -> argparse.ArgumentParser:
             "When unset, the report uses anonymous read-only API access."
         ),
     )
+    parser.add_argument(
+        "--trusted-api-origin",
+        default="https://localize.ds-wizard.org",
+        help="HTTPS origin allowed to receive the Weblate API token.",
+    )
     return parser
 
 
@@ -86,6 +91,7 @@ def main() -> None:
             config_path=config_path,
             query=args.query,
             api_token=os.environ.get(args.api_token_env, ""),
+            trusted_api_origin=args.trusted_api_origin,
         )
     except Exception as error:
         if not args.allow_api_failure:

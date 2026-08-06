@@ -60,6 +60,7 @@ def build_weblate_checks_report(
     query: str = "has:check",
     page_size: int = 100,
     api_token: str = "",
+    trusted_api_origin: str = "https://localize.ds-wizard.org",
     downloader: Downloader | None = None,
 ) -> WeblateChecksReport:
     """Query Weblate units matching a check expression.
@@ -70,6 +71,7 @@ def build_weblate_checks_report(
         query: Weblate unit search expression.
         page_size: API page size.
         api_token: Optional Weblate API token. Empty values use anonymous API access.
+        trusted_api_origin: Origin allowed to receive the API token.
         downloader: Optional injectable downloader used by tests.
 
     Returns:
@@ -82,7 +84,11 @@ def build_weblate_checks_report(
         query=query,
         page_size=page_size,
     )
-    download = downloader or _authenticated_downloader(api_token) or _download_url
+    download = (
+        downloader
+        or _authenticated_downloader(api_token, api_url, trusted_api_origin)
+        or _download_url
+    )
     issues: list[WeblateCheckIssue] = []
     next_url: str | None = api_url
     total_count = 0
@@ -255,13 +261,27 @@ def _download_json(url: str, downloader: Downloader) -> dict[str, Any]:
     return payload
 
 
-def _authenticated_downloader(token: str) -> Downloader | None:
-    """Build an authenticated downloader when a token is available."""
+def _authenticated_downloader(
+    token: str,
+    api_url: str,
+    trusted_api_origin: str,
+) -> Downloader | None:
+    """Build a downloader that only authenticates requests to a trusted origin."""
 
     if not token.strip():
         return None
 
+    trusted_origin = _url_origin(trusted_api_origin)
+    if _url_origin(api_url) != trusted_origin:
+        raise ValueError(
+            "Refusing to send the Weblate API token to an untrusted origin"
+        )
+
     def download(url: str) -> bytes:
+        if _url_origin(url) != trusted_origin:
+            raise ValueError(
+                "Refusing to send the Weblate API token to an untrusted origin"
+            )
         request = urllib.request.Request(
             url,
             headers={"Authorization": bearer_authorization_header(token)},
@@ -270,6 +290,21 @@ def _authenticated_downloader(token: str) -> Downloader | None:
             return response.read()
 
     return download
+
+
+def _url_origin(url: str) -> tuple[str, str]:
+    """Return a normalized HTTPS origin suitable for authentication checks."""
+
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme.lower() != "https" or not parsed.hostname:
+        raise ValueError("Authenticated Weblate API URLs must use HTTPS")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("Authenticated Weblate API URLs must not contain credentials")
+    port = parsed.port
+    netloc = parsed.hostname.lower()
+    if port is not None and port != 443:
+        netloc = f"{netloc}:{port}"
+    return "https", netloc
 
 
 def _build_issue(unit: dict[str, Any]) -> WeblateCheckIssue:

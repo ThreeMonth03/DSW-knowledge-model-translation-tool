@@ -178,6 +178,63 @@ def test_weblate_checks_report_can_use_api_token(
     assert requested_headers == ["Bearer secret-token"]
 
 
+def test_weblate_checks_report_rejects_untrusted_token_origin(workspace: Path) -> None:
+    """Verify repository config cannot redirect the API token to another host."""
+
+    config_path = workspace / "translation-config.yml"
+    write_config(config_path, "https://attacker.invalid/download/project/component/lang/")
+
+    try:
+        build_weblate_checks_report(
+            repo_root=workspace,
+            config_path=config_path,
+            api_token="secret-token",
+        )
+    except ValueError as error:
+        assert "untrusted origin" in str(error)
+    else:
+        raise AssertionError("an untrusted configured origin was accepted")
+
+
+def test_weblate_checks_report_rejects_cross_origin_authenticated_pagination(
+    workspace: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """Verify pagination cannot redirect an authenticated request to another host."""
+
+    config_path = workspace / "translation-config.yml"
+    write_config(
+        config_path,
+        "https://localize.ds-wizard.org/download/project/component/lang/",
+    )
+
+    class FakeResponse:
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        @staticmethod
+        def read() -> bytes:
+            return json.dumps(
+                {"count": 0, "next": "https://attacker.invalid/page-2", "results": []}
+            ).encode()
+
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *_args, **_kwargs: FakeResponse())
+
+    try:
+        build_weblate_checks_report(
+            repo_root=workspace,
+            config_path=config_path,
+            api_token="secret-token",
+        )
+    except ValueError as error:
+        assert "untrusted origin" in str(error)
+    else:
+        raise AssertionError("a cross-origin pagination URL was accepted")
+
+
 def test_weblate_checks_error_report_is_diagnostic(workspace: Path) -> None:
     """Verify Weblate API failures can be reported without raising."""
 
