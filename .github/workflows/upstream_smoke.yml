@@ -3,7 +3,6 @@ name: Upstream Smoke
 on:
   schedule:
     - cron: "20 3 * * *"
-  workflow_dispatch:
 
 permissions:
   contents: read

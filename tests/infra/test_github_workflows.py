@@ -296,7 +296,7 @@ def test_upstream_smoke_workflow_is_tooling_integration_check(repo_root: Path) -
     workflow_text = workflow_path.read_text(encoding="utf-8")
 
     assert workflow["on"]["schedule"][0]["cron"] == "20 3 * * *"
-    assert "workflow_dispatch" in workflow["on"]
+    assert "workflow_dispatch" not in workflow["on"]
     assert workflow["permissions"]["contents"] == "read"
     assert "actions/cache/restore@v5" in workflow_text
     assert "actions/cache/save@v5" in workflow_text
