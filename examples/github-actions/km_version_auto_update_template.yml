@@ -55,8 +55,8 @@ jobs:
           tooling-repo/.venv/bin/dsw-km-sync-latest-km
           --repo-root "$GITHUB_WORKSPACE/translation-repo"
           --tooling-repo "$GITHUB_WORKSPACE/tooling-repo"
-          --config "${{ env.TRANSLATION_CONFIG }}"
-          --target-ref "${{ env.TRACKING_BRANCH }}"
+          --config "$TRANSLATION_CONFIG"
+          --target-ref "$TRACKING_BRANCH"
           --report "$RUNNER_TEMP/km_auto_update_report.json"
           --details-out "$RUNNER_TEMP/km_auto_update_report.md"
           --summary "$GITHUB_STEP_SUMMARY"

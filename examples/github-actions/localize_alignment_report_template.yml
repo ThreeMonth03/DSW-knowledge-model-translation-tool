@@ -45,7 +45,7 @@ jobs:
         run: >-
           tooling-repo/.venv/bin/dsw-km-report-alignment
           --repo-root "$GITHUB_WORKSPACE/translation-repo"
-          --config "${{ env.TRANSLATION_CONFIG }}"
+          --config "$TRANSLATION_CONFIG"
           --json-out "$GITHUB_WORKSPACE/translation-repo/reviews/localize_alignment_report.json"
           --details-out "$GITHUB_WORKSPACE/translation-repo/reviews/localize_alignment_report.md"
           --summary "$GITHUB_STEP_SUMMARY"
