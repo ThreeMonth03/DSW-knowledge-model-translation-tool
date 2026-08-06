@@ -178,6 +178,36 @@ def test_git_source_sync_rejects_uncommitted_bundle(
         )
 
 
+def test_git_source_sync_rejects_tracked_symlink(
+    workspace: Path,
+    model_path: Path,
+) -> None:
+    external_bundle = workspace / "external.km"
+    shutil.copyfile(model_path, external_bundle)
+    source_repo = workspace / "source-repo"
+    bundle_path = source_repo / "km" / "root.km"
+    bundle_path.parent.mkdir(parents=True)
+    bundle_path.symlink_to(external_bundle)
+    _commit_repository(source_repo)
+
+    translation_repo = workspace / "translation-repo"
+    translation_repo.mkdir()
+    write_github_git_config(
+        translation_repo / "translation-config.yml",
+        source_ref=_git_output(source_repo, "rev-parse", "HEAD"),
+        organization_id="dsw",
+        km_id="root",
+        version="2.7.0",
+        upstream_bundle_path="km/root.km",
+    )
+
+    with pytest.raises(GitTranslationSourceError, match="not a regular file"):
+        sync_git_translation_source(
+            repo_root=translation_repo,
+            source_repo=source_repo,
+        )
+
+
 def _commit_repository(repo: Path) -> None:
     subprocess.run(["git", "init", "-q", str(repo)], check=True)
     subprocess.run(["git", "-C", str(repo), "add", "km/root.km"], check=True)
