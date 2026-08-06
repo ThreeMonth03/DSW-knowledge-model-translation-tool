@@ -79,9 +79,7 @@ class SharedBlocksCatalogBuilder:
 
         manifest = self.tree_repository.read_existing_manifest(tree_dir)
         if manifest is None:
-            raise ValueError(
-                f"Translation tree manifest not found in {tree_dir}/{MANIFEST_NAME}"
-            )
+            raise ValueError(f"Translation tree manifest not found in {tree_dir}/{MANIFEST_NAME}")
 
         blocks = PoCatalogParser(original_po_path).parse_blocks()
         scan_result = self.tree_repository.scan(tree_dir)
@@ -126,9 +124,7 @@ class SharedBlocksCatalogBuilder:
 
         manifest = self.tree_repository.read_existing_manifest(tree_dir)
         if manifest is None:
-            raise ValueError(
-                f"Translation tree manifest not found in {tree_dir}/{MANIFEST_NAME}"
-            )
+            raise ValueError(f"Translation tree manifest not found in {tree_dir}/{MANIFEST_NAME}")
 
         blocks = PoCatalogParser(original_po_path).parse_blocks()
         scan_result = self.tree_repository.scan(tree_dir)
@@ -182,8 +178,7 @@ class SharedBlocksCatalogBuilder:
             records.append(
                 SharedBlockRecord(
                     group_key=tuple(
-                        (reference.uuid, reference.field)
-                        for reference in block.references
+                        (reference.uuid, reference.field) for reference in block.references
                     ),
                     source_text=block.msgid,
                     translation_text=self._resolve_translation_text(
@@ -192,10 +187,7 @@ class SharedBlocksCatalogBuilder:
                     ),
                     contexts=contexts,
                     stable_id=SharedBlocksCatalogParser.stable_group_id(
-                        tuple(
-                            (reference.uuid, reference.field)
-                            for reference in block.references
-                        )
+                        tuple((reference.uuid, reference.field) for reference in block.references)
                     ),
                 )
             )
@@ -219,9 +211,7 @@ class SharedBlocksCatalogBuilder:
                 continue
             candidates.append(
                 (
-                    snapshot.field_modified_at.get(
-                        reference.field, snapshot.modified_at
-                    ),
+                    snapshot.field_modified_at.get(reference.field, snapshot.modified_at),
                     snapshot.path,
                     state.target_text,
                 )
@@ -275,9 +265,7 @@ class SharedBlocksCatalogBuilder:
         """Render shared-block records into compact overview markdown."""
 
         indexed_records = list(enumerate(records, start=1))
-        translated_count = sum(
-            1 for _, record in indexed_records if record.is_translated
-        )
+        translated_count = sum(1 for _, record in indexed_records if record.is_translated)
         untranslated_count = len(indexed_records) - translated_count
         lines = [
             "# Shared Blocks Outline",
@@ -312,14 +300,10 @@ class SharedBlocksCatalogBuilder:
                 / SHARED_BLOCK_CONTEXT_FILENAME,
                 output_path.parent,
             )
-            translation_destination = (
-                TranslationOutlineRenderer.format_link_destination(
-                    context_relative_path
-                )
+            translation_destination = TranslationOutlineRenderer.format_link_destination(
+                context_relative_path
             )
-            source_preview = self._escape_markdown_link_text(
-                self._preview_text(record.source_text)
-            )
+            source_preview = self._escape_markdown_link_text(self._preview_text(record.source_text))
             lines.append(f"- [{checkbox}] Group {group_index:04d}")
             lines.append("")
             lines.append(f"  [{source_preview}]({translation_destination})")
@@ -383,9 +367,7 @@ class SharedBlocksCatalogBuilder:
             "",
             f"- Status: [{'x' if record.is_translated else ' '}]",
             f"- Stable ID: `{record.stable_id}`",
-            (
-                f"- Shared Key: `{SharedBlocksCatalogParser.serialize_group_key(record.group_key)}`"
-            ),
+            (f"- Shared Key: `{SharedBlocksCatalogParser.serialize_group_key(record.group_key)}`"),
             "",
             f"### Source ({self.source_lang})",
             "",
@@ -420,9 +402,7 @@ class SharedBlocksCatalogBuilder:
         return "\n".join(lines).rstrip() + "\n"
 
     @staticmethod
-    def _prune_stale_group_paths(
-        shared_blocks_root: Path, expected_group_ids: set[str]
-    ) -> None:
+    def _prune_stale_group_paths(shared_blocks_root: Path, expected_group_ids: set[str]) -> None:
         """Remove stale generated group directories from the canonical root."""
 
         reject_symlink_path(shared_blocks_root)

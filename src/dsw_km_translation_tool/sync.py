@@ -9,8 +9,8 @@ from pathlib import Path
 from .data_models import (
     SharedStringSyncResult,
 )
-from .po import PoCatalogParser, PoCatalogWriter
 from .path_safety import reject_symlink_path
+from .po import PoCatalogParser, PoCatalogWriter
 from .shared_blocks import (
     SharedBlocksCatalogParser,
     resolve_shared_blocks_backup_root,
@@ -284,9 +284,7 @@ class SharedStringSynchronizer:
                 reject_symlink_path(destination, shared_blocks_root)
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 reject_symlink_path(destination, shared_blocks_root)
-                destination.write_text(
-                    backup_file.read_text(encoding="utf-8"), encoding="utf-8"
-                )
+                destination.write_text(backup_file.read_text(encoding="utf-8"), encoding="utf-8")
         else:
             reject_symlink_path(shared_blocks_root)
             try:
@@ -338,9 +336,7 @@ class SharedStringSynchronizer:
             normalized_key
             for group_key, references in groups.items()
             if len(references) >= 2
-            for normalized_key in (
-                self.group_processor.normalize_shared_block_key(group_key),
-            )
+            for normalized_key in (self.group_processor.normalize_shared_block_key(group_key),)
             if normalized_key
         }
 
