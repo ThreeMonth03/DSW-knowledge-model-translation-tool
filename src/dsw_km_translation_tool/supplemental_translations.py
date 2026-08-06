@@ -32,9 +32,7 @@ class SupplementalTranslationCatalog:
 
         root = Path(directory)
         if not root.is_dir():
-            raise ValueError(
-                f"Supplemental translation directory does not exist: {root}"
-            )
+            raise ValueError(f"Supplemental translation directory does not exist: {root}")
 
         entries: list[PoEntry] = []
         seen: set[tuple[str, str]] = set()

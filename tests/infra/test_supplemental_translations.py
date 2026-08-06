@@ -119,10 +119,6 @@ def test_build_km_rejects_structural_supplemental_field(
             supplemental_translations_dir=str(supplemental_dir),
         )
     except ValueError as error:
-        assert "Unsupported supplemental translation field 'requiredPhaseUuid'" in str(
-            error
-        )
+        assert "Unsupported supplemental translation field 'requiredPhaseUuid'" in str(error)
     else:
-        raise AssertionError(
-            "Expected structural supplemental field validation to fail"
-        )
+        raise AssertionError("Expected structural supplemental field validation to fail")
