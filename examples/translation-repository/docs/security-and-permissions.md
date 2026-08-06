@@ -7,7 +7,7 @@ permissions for this repository.
 
 | Workflow | Permission | Secret | Writes |
 | --- | --- | --- | --- |
-| `localize_auto_sync.yml` | `contents: write` | none | tracking branch or same-repository PR branch |
+| `localize_auto_sync.yml` | `contents: write` | none | tracking branch from trusted scheduled runs |
 | `github_translation_import.yml` | `contents: write` | `LOCALIZE_API_TOKEN` | Weblate after merge; Git only when sync changes follow |
 | `localize_status_report.yml` | `contents: read` | optional `LOCALIZE_API_TOKEN` | nothing |
 | `localize_alignment_report.yml` | `contents: read` | none | nothing |

@@ -109,11 +109,9 @@ update.
   error.
 - A translation PR failed Markdown validation: open the GitHub translation
   report and restore the missing emphasis, link, list, or code formatting.
-- A same-repository translation PR failed shared-block validation: inspect the
-  shared-sync step first. To reproduce it locally, run
-  `make repo-sync-shared-strings TRANSLATION_REPO_DIR=/path/to/repo`.
-- A fork translation PR failed shared-block validation: run the same command
-  locally and commit its `tree/` changes to the fork branch; Actions never
-  writes to forks.
+- A translation PR failed shared-block validation: run
+  `make repo-sync-shared-strings TRANSLATION_REPO_DIR=/path/to/repo` locally
+  and commit the resulting `tree/` changes to the PR branch. The scheduled
+  writer never executes PR-controlled code or writes to PR branches.
 - A translation PR conflicts with Weblate: resolve the reported entries before
   merging; the workflow does not choose a winner automatically.
