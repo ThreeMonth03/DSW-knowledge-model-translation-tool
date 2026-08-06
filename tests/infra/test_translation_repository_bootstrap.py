@@ -46,7 +46,9 @@ def test_bootstrap_scaffolds_config_docs_and_workflows(
     workflow_text = workflow.read_text(encoding="utf-8")
     assert "TOOLING_REPOSITORY: ThreeMonth03/dsw-km-translation-tool" in workflow_text
     assert "TRACKING_BRANCH: translation/latest" in workflow_text
-    assert 'branches: ["translation/latest"]' in workflow_text
+    assert 'branches: ["translation/latest"]' not in workflow_text
+    assert "pull_request:" not in workflow_text
+    assert "workflow_dispatch:" not in workflow_text
     assert result.written_files
     assert result.skipped_files == ()
 
