@@ -36,7 +36,6 @@ The external translation workflow should run:
 
 - on a schedule, usually twice per day
 - on pull requests targeting `master`
-- on manual `workflow_dispatch`
 
 The workflow runs the `dsw-km-sync-localize` command. That command:
 

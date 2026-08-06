@@ -69,7 +69,7 @@ def test_localize_auto_sync_template_matches_writer_policy(
 
     assert workflow["on"]["schedule"][0]["cron"] == "0 1,13 * * *"
     assert workflow["on"]["pull_request"]["branches"] == ["master"]
-    assert "workflow_dispatch" in workflow["on"]
+    assert "workflow_dispatch" not in workflow["on"]
     assert workflow["permissions"]["contents"] == "write"
     assert workflow["concurrency"]["queue"] == "max"
     assert_tooling_checkout_env(workflow)
