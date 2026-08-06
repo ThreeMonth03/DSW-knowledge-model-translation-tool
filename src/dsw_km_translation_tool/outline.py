@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -51,7 +53,21 @@ class TranslationOutlineBuilder:
 
         output_file = Path(output_outline_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
-        output_file.write_text(markdown_text, encoding="utf-8")
+        temporary_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=output_file.parent,
+                prefix=f".{output_file.name}.",
+                delete=False,
+            ) as temporary_file:
+                temporary_file.write(markdown_text)
+                temporary_path = Path(temporary_file.name)
+            os.replace(temporary_path, output_file)
+        finally:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
         return OutlineBuildResult(
             markdown_text=markdown_text,
             output_outline=output_file,
