@@ -36,7 +36,7 @@ Configure these secrets in this repository:
 
 | Workflow | Schedule | Writes | Normal Result |
 | --- | --- | --- | --- |
-| `localize_auto_sync.yml` | Scheduled, PR, manual | Git | Mirrors Weblate; commits only when tracked files changed |
+| `localize_auto_sync.yml` | Scheduled, PR | Git | Mirrors Weblate; commits only when tracked files changed |
 | `github_translation_import.yml` | Push to the tracking branch, manual | Weblate, then Git if sync changes follow | Imports accepted GitHub translation edits after merge; fails on conflicts |
 | `localize_status_report.yml` | Scheduled, manual | No | Reports empty translations, review-state counts, and Weblate checks |
 | `localize_alignment_report.yml` | Scheduled, manual | No | Verifies Weblate PO, checked-in PO, tree, final PO, and final KM alignment |

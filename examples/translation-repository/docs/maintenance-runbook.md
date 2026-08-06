@@ -37,12 +37,6 @@ gh run list --workflow github_translation_import.yml --branch master --limit 5
 
 ## Manual Triggers
 
-Trigger Weblate-to-Git sync after a translation batch lands in Weblate:
-
-```shell
-gh workflow run localize_auto_sync.yml --ref master
-```
-
 Trigger read-only reports:
 
 ```shell
