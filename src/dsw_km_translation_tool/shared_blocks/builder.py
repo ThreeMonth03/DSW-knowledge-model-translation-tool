@@ -22,6 +22,7 @@ from ..data_models import (
     TreeFolderSnapshot,
 )
 from ..outline_support import TranslationOutlineRenderer
+from ..path_safety import reject_symlink_path
 from ..po import PoCatalogParser
 from ..tree import TranslationTreeRepository
 from .models import SharedBlockContext, SharedBlockRecord
@@ -78,7 +79,9 @@ class SharedBlocksCatalogBuilder:
 
         manifest = self.tree_repository.read_existing_manifest(tree_dir)
         if manifest is None:
-            raise ValueError(f"Translation tree manifest not found in {tree_dir}/{MANIFEST_NAME}")
+            raise ValueError(
+                f"Translation tree manifest not found in {tree_dir}/{MANIFEST_NAME}"
+            )
 
         blocks = PoCatalogParser(original_po_path).parse_blocks()
         scan_result = self.tree_repository.scan(tree_dir)
@@ -123,7 +126,9 @@ class SharedBlocksCatalogBuilder:
 
         manifest = self.tree_repository.read_existing_manifest(tree_dir)
         if manifest is None:
-            raise ValueError(f"Translation tree manifest not found in {tree_dir}/{MANIFEST_NAME}")
+            raise ValueError(
+                f"Translation tree manifest not found in {tree_dir}/{MANIFEST_NAME}"
+            )
 
         blocks = PoCatalogParser(original_po_path).parse_blocks()
         scan_result = self.tree_repository.scan(tree_dir)
@@ -177,7 +182,8 @@ class SharedBlocksCatalogBuilder:
             records.append(
                 SharedBlockRecord(
                     group_key=tuple(
-                        (reference.uuid, reference.field) for reference in block.references
+                        (reference.uuid, reference.field)
+                        for reference in block.references
                     ),
                     source_text=block.msgid,
                     translation_text=self._resolve_translation_text(
@@ -186,7 +192,10 @@ class SharedBlocksCatalogBuilder:
                     ),
                     contexts=contexts,
                     stable_id=SharedBlocksCatalogParser.stable_group_id(
-                        tuple((reference.uuid, reference.field) for reference in block.references)
+                        tuple(
+                            (reference.uuid, reference.field)
+                            for reference in block.references
+                        )
                     ),
                 )
             )
@@ -210,7 +219,9 @@ class SharedBlocksCatalogBuilder:
                 continue
             candidates.append(
                 (
-                    snapshot.field_modified_at.get(reference.field, snapshot.modified_at),
+                    snapshot.field_modified_at.get(
+                        reference.field, snapshot.modified_at
+                    ),
                     snapshot.path,
                     state.target_text,
                 )
@@ -264,7 +275,9 @@ class SharedBlocksCatalogBuilder:
         """Render shared-block records into compact overview markdown."""
 
         indexed_records = list(enumerate(records, start=1))
-        translated_count = sum(1 for _, record in indexed_records if record.is_translated)
+        translated_count = sum(
+            1 for _, record in indexed_records if record.is_translated
+        )
         untranslated_count = len(indexed_records) - translated_count
         lines = [
             "# Shared Blocks Outline",
@@ -299,10 +312,14 @@ class SharedBlocksCatalogBuilder:
                 / SHARED_BLOCK_CONTEXT_FILENAME,
                 output_path.parent,
             )
-            translation_destination = TranslationOutlineRenderer.format_link_destination(
-                context_relative_path
+            translation_destination = (
+                TranslationOutlineRenderer.format_link_destination(
+                    context_relative_path
+                )
             )
-            source_preview = self._escape_markdown_link_text(self._preview_text(record.source_text))
+            source_preview = self._escape_markdown_link_text(
+                self._preview_text(record.source_text)
+            )
             lines.append(f"- [{checkbox}] Group {group_index:04d}")
             lines.append("")
             lines.append(f"  [{source_preview}]({translation_destination})")
@@ -324,6 +341,7 @@ class SharedBlocksCatalogBuilder:
         """
 
         shared_blocks_root.mkdir(parents=True, exist_ok=True)
+        reject_symlink_path(shared_blocks_root)
         expected_group_ids = {record.stable_id for record in records}
         self._prune_stale_group_paths(shared_blocks_root, expected_group_ids)
 
@@ -331,9 +349,11 @@ class SharedBlocksCatalogBuilder:
         for group_index, record in enumerate(records, start=1):
             group_dir = shared_blocks_root / record.stable_id
             group_dir.mkdir(parents=True, exist_ok=True)
+            reject_symlink_path(group_dir, shared_blocks_root)
             self._prune_stale_group_member_paths(group_dir)
 
             context_path = group_dir / SHARED_BLOCK_CONTEXT_FILENAME
+            reject_symlink_path(context_path, shared_blocks_root)
             context_path.write_text(
                 self._render_group_context(
                     group_index=group_index,
@@ -363,7 +383,9 @@ class SharedBlocksCatalogBuilder:
             "",
             f"- Status: [{'x' if record.is_translated else ' '}]",
             f"- Stable ID: `{record.stable_id}`",
-            (f"- Shared Key: `{SharedBlocksCatalogParser.serialize_group_key(record.group_key)}`"),
+            (
+                f"- Shared Key: `{SharedBlocksCatalogParser.serialize_group_key(record.group_key)}`"
+            ),
             "",
             f"### Source ({self.source_lang})",
             "",
@@ -398,10 +420,14 @@ class SharedBlocksCatalogBuilder:
         return "\n".join(lines).rstrip() + "\n"
 
     @staticmethod
-    def _prune_stale_group_paths(shared_blocks_root: Path, expected_group_ids: set[str]) -> None:
+    def _prune_stale_group_paths(
+        shared_blocks_root: Path, expected_group_ids: set[str]
+    ) -> None:
         """Remove stale generated group directories from the canonical root."""
 
+        reject_symlink_path(shared_blocks_root)
         for child in shared_blocks_root.iterdir():
+            reject_symlink_path(child, shared_blocks_root)
             if child.name in expected_group_ids:
                 continue
             if child.is_dir():
@@ -413,10 +439,12 @@ class SharedBlocksCatalogBuilder:
     def _prune_stale_group_member_paths(group_dir: Path) -> None:
         """Remove unexpected generated files from one group directory."""
 
+        reject_symlink_path(group_dir)
         expected_names = {
             SHARED_BLOCK_CONTEXT_FILENAME,
         }
         for child in group_dir.iterdir():
+            reject_symlink_path(child, group_dir)
             if child.name in expected_names:
                 continue
             if child.is_dir():
@@ -540,13 +568,17 @@ class SharedBlocksCatalogBuilder:
             tree_dir=tree_dir,
         )
         backup_root.mkdir(parents=True, exist_ok=True)
+        reject_symlink_path(backup_root)
         expected_group_ids = {record.stable_id for record in records}
         self._prune_stale_group_paths(backup_root, expected_group_ids)
         for group_index, record in enumerate(records, start=1):
             group_dir = backup_root / record.stable_id
             group_dir.mkdir(parents=True, exist_ok=True)
+            reject_symlink_path(group_dir, backup_root)
             self._prune_stale_group_member_paths(group_dir)
-            (group_dir / SHARED_BLOCK_CONTEXT_FILENAME).write_text(
+            context_path = group_dir / SHARED_BLOCK_CONTEXT_FILENAME
+            reject_symlink_path(context_path, backup_root)
+            context_path.write_text(
                 self._render_group_context(
                     group_index=group_index,
                     record=record,
