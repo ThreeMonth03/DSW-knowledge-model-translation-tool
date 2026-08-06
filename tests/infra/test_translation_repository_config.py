@@ -219,9 +219,7 @@ def test_config_rejects_untrusted_tooling_repository(workspace: Path) -> None:
         ("branches.tracking_branch", "translation/../main"),
     ],
 )
-def test_config_rejects_unsafe_workflow_refs(
-    workspace: Path, field: str, value: str
-) -> None:
+def test_config_rejects_unsafe_workflow_refs(workspace: Path, field: str, value: str) -> None:
     config_path = workspace / "translation-config.yml"
     write_config(config_path)
     section, key = field.split(".")

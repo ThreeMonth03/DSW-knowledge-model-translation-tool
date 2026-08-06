@@ -287,8 +287,7 @@ def _load_tooling_config(payload: dict[str, Any]) -> ToolingConfig:
     repository = _require_str(payload, "repository")
     if repository != TRUSTED_TOOLING_REPOSITORY:
         raise TranslationRepositoryConfigError(
-            "tooling.repository must be the trusted repository "
-            f"`{TRUSTED_TOOLING_REPOSITORY}`"
+            f"tooling.repository must be the trusted repository `{TRUSTED_TOOLING_REPOSITORY}`"
         )
     return ToolingConfig(
         repository=repository,
