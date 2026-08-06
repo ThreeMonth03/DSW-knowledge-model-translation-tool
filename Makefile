@@ -225,8 +225,12 @@ require-source-repo-dir:
 	fi
 
 require-target-branch:
-	@if [ -z "$(TARGET_BRANCH)" ]; then \
+	@if [ -z "$${TARGET_BRANCH}" ]; then \
 		printf '%s\n' 'Set TARGET_BRANCH=<same-repository-branch-name>' >&2; \
+		exit 2; \
+	elif ! printf '%s\n' "$${TARGET_BRANCH}" | LC_ALL=C grep -Eq '^[A-Za-z0-9][A-Za-z0-9._/-]*$$' || \
+		! git check-ref-format --branch "$${TARGET_BRANCH}" >/dev/null 2>&1; then \
+		printf '%s\n' 'TARGET_BRANCH must be a valid branch name containing only letters, digits, ., _, /, or -' >&2; \
 		exit 2; \
 	fi
 
@@ -382,14 +386,16 @@ repo-sync: venv require-translation-repo
 		--target-ref "$(TRACKING_BRANCH)" \
 		--mode schedule
 
+repo-sync-branch: export TARGET_BRANCH := $(TARGET_BRANCH)
+repo-sync-branch: export RESTORE_SOURCE_REF := $(RESTORE_SOURCE_REF)
 repo-sync-branch: venv require-translation-repo require-target-branch
 	$(DSW_KM_SYNC_LOCALIZE) \
 		--host-repo "$(TRANSLATION_REPO_DIR)" \
 		--tooling-repo "$(CURDIR)" \
 		--config "$(TRANSLATION_CONFIG)" \
 		--translation-root . \
-		--target-ref "$(TARGET_BRANCH)" \
-		--restore-source-ref "$(RESTORE_SOURCE_REF)" \
+		--target-ref "$${TARGET_BRANCH}" \
+		--restore-source-ref "$${RESTORE_SOURCE_REF}" \
 		--mode pull_request
 
 repo-km-status: venv require-translation-repo
