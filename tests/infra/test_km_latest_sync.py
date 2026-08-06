@@ -6,9 +6,11 @@ import json
 import subprocess
 from pathlib import Path
 
+import pytest
 import yaml
 
 from dsw_km_translation_tool.km_latest_sync import (
+    KmLatestSyncError,
     render_km_latest_sync_markdown,
     sync_latest_km_version,
     update_knowledge_model_version,
@@ -101,6 +103,41 @@ def test_sync_latest_km_skips_new_version_without_token(workspace: Path) -> None
     assert result.registry_version == "2.8.0"
     assert result.target_ref == "translation/latest"
     assert result.skipped_reason == "missing-registry-token"
+
+
+@pytest.mark.parametrize(
+    "api_url",
+    [
+        "http://api.registry.ds-wizard.org",
+        "https://attacker.example",
+        "https://api.registry.ds-wizard.org.attacker.example",
+        "https://api.registry.ds-wizard.org@attacker.example",
+        "https://api.registry.ds-wizard.org:invalid",
+    ],
+)
+def test_sync_latest_km_rejects_untrusted_registry_before_network_access(
+    workspace: Path,
+    api_url: str,
+) -> None:
+    """Verify repo-controlled URLs cannot receive or trigger use of the Registry token."""
+
+    config_path = workspace / "translation-config.yml"
+    write_config(config_path)
+    payload = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    payload["registry"]["api_url"] = api_url
+    config_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    network_calls: list[str] = []
+
+    with pytest.raises(KmLatestSyncError, match="untrusted Registry API URL"):
+        sync_latest_km_version(
+            repo_root=workspace,
+            tooling_repo=workspace / "tooling",
+            config_path=Path("translation-config.yml"),
+            registry_token="secret",
+            downloader=lambda url: network_calls.append(url) or registry_payload("2.8.0"),
+        )
+
+    assert network_calls == []
 
 
 def test_sync_latest_km_updates_validates_and_pushes_target_ref(

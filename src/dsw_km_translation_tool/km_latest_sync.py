@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import urllib.parse
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,6 +23,7 @@ from .km_registry import Downloader, discover_km_versions
 from .localize_sync import Downloader as LocalizeDownloader
 from .localize_sync import pull_localize_po
 from .translation_repository_config import (
+    DEFAULT_REGISTRY_API_URL,
     TranslationRepositoryConfig,
     TranslationRepositoryConfigError,
     format_package_id,
@@ -98,6 +100,8 @@ def sync_latest_km_version(
     config = load_translation_repository_config(resolved_config_path)
     configured_version = config.knowledge_model.version
     push_ref = target_ref or tracking_branch(config)
+    if registry_token.strip():
+        _ensure_trusted_registry(config.registry.api_url)
     discovery = discover_km_versions(config_path=resolved_config_path, downloader=downloader)
     registry_version = discovery.latest_registry_version
     if not discovery.newer_versions:
@@ -180,6 +184,31 @@ def sync_latest_km_version(
         changed=committed,
         dry_run=False,
     )
+
+
+def _ensure_trusted_registry(api_url: str) -> None:
+    """Reject repo-controlled Registry destinations before handling a token."""
+
+    try:
+        configured = urllib.parse.urlsplit(api_url)
+        trusted = urllib.parse.urlsplit(DEFAULT_REGISTRY_API_URL)
+        trusted_destination = (
+            configured.scheme == "https"
+            and configured.hostname == trusted.hostname
+            and configured.port in (None, 443)
+            and configured.username is None
+            and configured.password is None
+            and configured.path.rstrip("/") == trusted.path.rstrip("/")
+            and not configured.query
+            and not configured.fragment
+        )
+    except ValueError:
+        trusted_destination = False
+    if not trusted_destination:
+        raise KmLatestSyncError(
+            "Refusing to use DSW_REGISTRY_TOKEN with untrusted Registry API URL "
+            f"{api_url!r}; expected {DEFAULT_REGISTRY_API_URL!r}."
+        )
 
 
 def update_knowledge_model_version(config_path: Path, version: str) -> str:
