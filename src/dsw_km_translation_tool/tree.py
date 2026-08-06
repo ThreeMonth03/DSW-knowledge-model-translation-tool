@@ -412,9 +412,7 @@ class TranslationTreeRepository:
             model_name=model_name,
         )
         relative_path = (
-            directory_name
-            if not parent_dir
-            else os.path.join(parent_dir, directory_name)
+            directory_name if not parent_dir else os.path.join(parent_dir, directory_name)
         )
         absolute_path = Path(out_dir) / relative_path
         absolute_path.mkdir(parents=True, exist_ok=True)
