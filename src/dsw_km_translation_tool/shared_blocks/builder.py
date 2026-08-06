@@ -22,6 +22,7 @@ from ..data_models import (
     TreeFolderSnapshot,
 )
 from ..outline_support import TranslationOutlineRenderer
+from ..path_safety import reject_symlink_path
 from ..po import PoCatalogParser
 from ..tree import TranslationTreeRepository
 from .models import SharedBlockContext, SharedBlockRecord
@@ -324,6 +325,7 @@ class SharedBlocksCatalogBuilder:
         """
 
         shared_blocks_root.mkdir(parents=True, exist_ok=True)
+        reject_symlink_path(shared_blocks_root)
         expected_group_ids = {record.stable_id for record in records}
         self._prune_stale_group_paths(shared_blocks_root, expected_group_ids)
 
@@ -331,9 +333,11 @@ class SharedBlocksCatalogBuilder:
         for group_index, record in enumerate(records, start=1):
             group_dir = shared_blocks_root / record.stable_id
             group_dir.mkdir(parents=True, exist_ok=True)
+            reject_symlink_path(group_dir, shared_blocks_root)
             self._prune_stale_group_member_paths(group_dir)
 
             context_path = group_dir / SHARED_BLOCK_CONTEXT_FILENAME
+            reject_symlink_path(context_path, shared_blocks_root)
             context_path.write_text(
                 self._render_group_context(
                     group_index=group_index,
@@ -401,7 +405,9 @@ class SharedBlocksCatalogBuilder:
     def _prune_stale_group_paths(shared_blocks_root: Path, expected_group_ids: set[str]) -> None:
         """Remove stale generated group directories from the canonical root."""
 
+        reject_symlink_path(shared_blocks_root)
         for child in shared_blocks_root.iterdir():
+            reject_symlink_path(child, shared_blocks_root)
             if child.name in expected_group_ids:
                 continue
             if child.is_dir():
@@ -413,10 +419,12 @@ class SharedBlocksCatalogBuilder:
     def _prune_stale_group_member_paths(group_dir: Path) -> None:
         """Remove unexpected generated files from one group directory."""
 
+        reject_symlink_path(group_dir)
         expected_names = {
             SHARED_BLOCK_CONTEXT_FILENAME,
         }
         for child in group_dir.iterdir():
+            reject_symlink_path(child, group_dir)
             if child.name in expected_names:
                 continue
             if child.is_dir():
@@ -540,13 +548,17 @@ class SharedBlocksCatalogBuilder:
             tree_dir=tree_dir,
         )
         backup_root.mkdir(parents=True, exist_ok=True)
+        reject_symlink_path(backup_root)
         expected_group_ids = {record.stable_id for record in records}
         self._prune_stale_group_paths(backup_root, expected_group_ids)
         for group_index, record in enumerate(records, start=1):
             group_dir = backup_root / record.stable_id
             group_dir.mkdir(parents=True, exist_ok=True)
+            reject_symlink_path(group_dir, backup_root)
             self._prune_stale_group_member_paths(group_dir)
-            (group_dir / SHARED_BLOCK_CONTEXT_FILENAME).write_text(
+            context_path = group_dir / SHARED_BLOCK_CONTEXT_FILENAME
+            reject_symlink_path(context_path, backup_root)
+            context_path.write_text(
                 self._render_group_context(
                     group_index=group_index,
                     record=record,
