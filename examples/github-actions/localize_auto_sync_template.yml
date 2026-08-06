@@ -3,7 +3,6 @@ name: Localize Translation Auto Sync
 on:
   schedule:
     - cron: "0 1,13 * * *"
-  workflow_dispatch:
 
 permissions:
   contents: write
