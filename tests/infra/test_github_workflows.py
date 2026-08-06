@@ -339,3 +339,16 @@ def test_source_workflows_verify_previous_github_release(repo_root: Path) -> Non
         text = (template_root / name).read_text(encoding="utf-8")
         assert "GITHUB_TOKEN: ${{ github.token }}" in text
         assert '--github-repository "$GITHUB_REPOSITORY"' in text
+
+
+def test_source_release_requires_tag_on_default_branch(repo_root: Path) -> None:
+    workflow_path = (
+        repo_root / "examples" / "km-source-repository" / ".github" / "workflows" / "release.yml"
+    )
+    text = workflow_path.read_text(encoding="utf-8")
+
+    ancestry_check = 'git merge-base --is-ancestor "$tagged_commit" FETCH_HEAD'
+    assert "DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}" in text
+    assert 'git fetch --no-tags origin "$DEFAULT_BRANCH"' in text
+    assert ancestry_check in text
+    assert text.index(ancestry_check) < text.index("gh release create")
