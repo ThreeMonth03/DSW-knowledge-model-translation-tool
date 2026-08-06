@@ -172,6 +172,7 @@ def _require_committed_bundle(
                 "-C",
                 str(source_root),
                 "ls-files",
+                "--stage",
                 "--error-unmatch",
                 upstream_bundle_path.as_posix(),
             ],
@@ -199,6 +200,11 @@ def _require_committed_bundle(
     if tracked.returncode != 0:
         raise GitTranslationSourceError(
             f"Pinned source bundle is not tracked: {upstream_bundle_path}"
+        )
+    tracked_mode = tracked.stdout.partition(" ")[0]
+    if tracked_mode not in {"100644", "100755"}:
+        raise GitTranslationSourceError(
+            f"Pinned source bundle is not a regular file: {upstream_bundle_path}"
         )
     if unchanged.returncode != 0:
         raise GitTranslationSourceError(
