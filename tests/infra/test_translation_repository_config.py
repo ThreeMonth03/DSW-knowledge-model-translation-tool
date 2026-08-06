@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from dsw_km_translation_tool.repository_ci_sync import build_repository_ci_sync_config
 from dsw_km_translation_tool.translation_repository_config import (
     TranslationRepositoryConfigError,
@@ -193,6 +195,42 @@ def test_config_loader_uses_default_registry_when_omitted(workspace: Path) -> No
     config = load_translation_repository_config(config_path)
 
     assert config.registry.api_url == "https://api.registry.ds-wizard.org"
+
+
+def test_config_rejects_untrusted_tooling_repository(workspace: Path) -> None:
+    config_path = workspace / "translation-config.yml"
+    write_config(config_path)
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8").replace(
+            "ThreeMonth03/dsw-km-translation-tool", "attacker/evil-tooling"
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(TranslationRepositoryConfigError, match="trusted repository"):
+        load_translation_repository_config(config_path)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("tooling.ref", "main\ninjected: value"),
+        ("branches.tracking_branch", "translation/latest; echo pwned"),
+        ("branches.tracking_branch", "translation/../main"),
+    ],
+)
+def test_config_rejects_unsafe_workflow_refs(workspace: Path, field: str, value: str) -> None:
+    config_path = workspace / "translation-config.yml"
+    write_config(config_path)
+    section, key = field.split(".")
+    text = config_path.read_text(encoding="utf-8")
+    old_value = "master" if section == "tooling" else "translation/latest"
+    block_value = value.replace("\n", "\n    ")
+    text = text.replace(f"  {key}: {old_value}", f"  {key}: |\n    {block_value}")
+    config_path.write_text(text, encoding="utf-8")
+
+    with pytest.raises(TranslationRepositoryConfigError, match="safe Git ref"):
+        load_translation_repository_config(config_path)
 
 
 def test_github_config_requires_no_localize_mapping(workspace: Path) -> None:

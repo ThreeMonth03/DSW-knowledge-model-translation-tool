@@ -125,6 +125,8 @@ DEFAULT_REGISTRY_API_URL = "https://api.registry.ds-wizard.org"
 WORKFLOW_MODES = frozenset({"weblate", "github"})
 GITHUB_SOURCE_MODES = frozenset({"release", "git"})
 GIT_COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
+TRUSTED_TOOLING_REPOSITORY = "ThreeMonth03/dsw-km-translation-tool"
+GIT_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
 
 
 def load_translation_repository_config(path: str | Path) -> TranslationRepositoryConfig:
@@ -155,10 +157,7 @@ def load_translation_repository_config(path: str | Path) -> TranslationRepositor
         translation=translation,
     )
     branches = _load_branch_config(_require_dict(payload, "branches"))
-    tooling = ToolingConfig(
-        repository=_require_str(_require_dict(payload, "tooling"), "repository"),
-        ref=_require_str(_require_dict(payload, "tooling"), "ref"),
-    )
+    tooling = _load_tooling_config(_require_dict(payload, "tooling"))
     workflow = _load_workflow_config(_optional_dict(payload, "workflow"))
     _validate_source_mode(knowledge_model=knowledge_model, workflow=workflow)
     localize_payload = payload.get("localize")
@@ -281,9 +280,35 @@ def _load_branch_config(payload: dict[str, Any]) -> BranchConfig:
     tracking = _optional_str(payload, "tracking_branch")
     if not tracking:
         raise TranslationRepositoryConfigError("branches.tracking_branch is required")
-    return BranchConfig(
-        tracking_branch=tracking,
+    return BranchConfig(tracking_branch=_validate_git_ref(tracking, "branches.tracking_branch"))
+
+
+def _load_tooling_config(payload: dict[str, Any]) -> ToolingConfig:
+    repository = _require_str(payload, "repository")
+    if repository != TRUSTED_TOOLING_REPOSITORY:
+        raise TranslationRepositoryConfigError(
+            f"tooling.repository must be the trusted repository `{TRUSTED_TOOLING_REPOSITORY}`"
+        )
+    return ToolingConfig(
+        repository=repository,
+        ref=_validate_git_ref(_require_str(payload, "ref"), "tooling.ref"),
     )
+
+
+def _validate_git_ref(value: str, field: str) -> str:
+    """Reject ref names that are unsafe in generated YAML, shells, or Git."""
+
+    invalid = (
+        not GIT_REF_RE.fullmatch(value)
+        or ".." in value
+        or "//" in value
+        or "@{" in value
+        or value.endswith(("/", "."))
+        or any(part.startswith(".") or part.endswith(".lock") for part in value.split("/"))
+    )
+    if invalid:
+        raise TranslationRepositoryConfigError(f"{field} must be a safe Git ref name")
+    return value
 
 
 def _load_localize_config(payload: dict[str, Any]) -> LocalizeConfig:
