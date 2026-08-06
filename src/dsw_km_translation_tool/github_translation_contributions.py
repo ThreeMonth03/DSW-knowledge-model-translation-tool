@@ -241,9 +241,7 @@ def read_tree_entries_from_git_ref(
         path=manifest_path,
         runner=runner,
     )
-    canonical_paths = _canonical_translation_paths(
-        manifest, relative_tree, manifest_path
-    )
+    canonical_paths = _canonical_translation_paths(manifest, relative_tree, manifest_path)
     entries: dict[PoKey, TreeTranslationEntry] = {}
     for path_text in result.stdout.splitlines():
         if not path_text.endswith(f"/{TRANSLATION_FILENAME}"):
@@ -335,9 +333,7 @@ def _canonical_translation_paths(
             raise GitHubTranslationContributionError(
                 f"Unsafe path for manifest node {entity_uuid}: {node_path}"
             )
-        translation_path = str(
-            PurePosixPath(relative_tree) / relative_path / TRANSLATION_FILENAME
-        )
+        translation_path = str(PurePosixPath(relative_tree) / relative_path / TRANSLATION_FILENAME)
         if translation_path in paths:
             raise GitHubTranslationContributionError(
                 f"Duplicate node path in translation tree manifest: {node_path}"
@@ -453,9 +449,7 @@ def render_github_translation_markdown(
             lines.extend(["", f"... and {hidden_count} more entries."])
     if report.shared_block_issues:
         lines.extend(["", "### Shared-Block Consistency Errors", ""])
-        lines.extend(
-            f"- `{issue.path}`: {issue.message}" for issue in report.shared_block_issues
-        )
+        lines.extend(f"- `{issue.path}`: {issue.message}" for issue in report.shared_block_issues)
     return "\n".join(lines) + "\n"
 
 
@@ -481,9 +475,7 @@ def write_import_po(
     for decision in importable:
         lines.append(f"#: github:{decision.uuid}:{decision.field}\n")
         lines.extend(PoSectionRenderer.format_po_string_block("msgid", decision.source))
-        lines.extend(
-            PoSectionRenderer.format_po_string_block("msgstr", decision.github)
-        )
+        lines.extend(PoSectionRenderer.format_po_string_block("msgstr", decision.github))
         lines.append("\n")
     path.write_text("".join(lines), encoding="utf-8")
     return path
@@ -518,19 +510,9 @@ def _build_decision(
     github_text = _target_text(head_entry)
     weblate_text = weblate_entry.msgstr if weblate_entry is not None else ""
     source = (
-        head_entry.source
-        if head_entry is not None
-        else base_entry.source
-        if base_entry
-        else ""
+        head_entry.source if head_entry is not None else base_entry.source if base_entry else ""
     )
-    path = (
-        head_entry.path
-        if head_entry is not None
-        else base_entry.path
-        if base_entry
-        else ""
-    )
+    path = head_entry.path if head_entry is not None else base_entry.path if base_entry else ""
     if head_entry is None:
         decision = REMOVED_DECISION
     elif weblate_entry is None:
@@ -553,9 +535,7 @@ def _build_decision(
         github=github_text,
         weblate=weblate_text,
         format_issues=(
-            compare_markdown_format(source, github_text)
-            if head_entry is not None
-            else ()
+            compare_markdown_format(source, github_text) if head_entry is not None else ()
         ),
     )
 

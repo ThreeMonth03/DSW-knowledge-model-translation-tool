@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
-import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -57,16 +57,12 @@ def test_github_translation_report_rejects_unmanifested_spoof_file(
     base_ref = commit_translation(repo, "base", "舊翻譯")
     spoof_path = repo / "tree" / "zzzz" / "translation.md"
     spoof_path.parent.mkdir(parents=True)
-    spoof_path.write_text(
-        render_translation_markdown("ATTACKER TRANSLATION"), encoding="utf-8"
-    )
+    spoof_path.write_text(render_translation_markdown("ATTACKER TRANSLATION"), encoding="utf-8")
     run_git(repo, "add", "tree/zzzz/translation.md")
     run_git(repo, "commit", "-m", "spoof")
     head_ref = run_git(repo, "rev-parse", "HEAD").stdout.strip()
 
-    with pytest.raises(
-        GitHubTranslationContributionError, match="not a canonical manifest node"
-    ):
+    with pytest.raises(GitHubTranslationContributionError, match="not a canonical manifest node"):
         build_github_translation_report(
             repo_root=repo,
             base_ref=base_ref,
@@ -612,9 +608,7 @@ def prepare_markdown_error_case(workspace: Path) -> tuple[Path, str, str, Path]:
 
     source = "*The **processor** definition.*"
     repo = initialize_translation_repo(workspace)
-    base_ref = commit_translation(
-        repo, "base", "*舊的 **資料處理者** 定義。*", source=source
-    )
+    base_ref = commit_translation(repo, "base", "*舊的 **資料處理者** 定義。*", source=source)
     head_ref = commit_translation(
         repo,
         "github",
