@@ -3,17 +3,13 @@ name: Localize Translation Auto Sync
 on:
   schedule:
     - cron: "0 1,13 * * *"
-  pull_request:
-    branches: ["{{TRACKING_BRANCH}}"]
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: >-
-    ${{ github.event_name == 'pull_request' &&
-    format('translation-pr-{0}', github.event.pull_request.head.ref) ||
-    'translation-state-{{TRACKING_BRANCH}}' }}
+  group: translation-state-{{TRACKING_BRANCH}}
   cancel-in-progress: false
   queue: max
 
@@ -29,17 +25,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout pull request translation repository
-        if: github.event_name == 'pull_request'
-        uses: actions/checkout@v5
-        with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
-          path: translation-repo
-          fetch-depth: 0
-
       - name: Checkout tracking translation repository
-        if: github.event_name != 'pull_request'
         uses: actions/checkout@v5
         with:
           ref: ${{ env.TRACKING_BRANCH }}
@@ -51,27 +37,6 @@ jobs:
         run: >-
           git fetch "https://github.com/${{ github.repository }}.git"
           "${{ env.TRACKING_BRANCH }}:refs/remotes/base/${{ env.TRACKING_BRANCH }}"
-
-      - name: Fetch pull request base commit
-        if: github.event_name == 'pull_request'
-        working-directory: translation-repo
-        run: >-
-          git fetch
-          "https://github.com/${{ github.event.pull_request.base.repo.full_name }}.git"
-          "${{ github.event.pull_request.base.sha }}:refs/remotes/base/pr-base"
-
-      - name: Check pull request head branch
-        id: head-branch
-        if: >-
-          github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name == github.repository
-        working-directory: translation-repo
-        run: |
-          if git ls-remote --exit-code --heads origin "${{ github.event.pull_request.head.ref }}" >/dev/null; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Checkout DSW KM Translation Tool
         uses: actions/checkout@v5
@@ -89,111 +54,13 @@ jobs:
         working-directory: tooling-repo
         run: make install-dev BOOTSTRAP_PYTHON=python
 
-      - name: Synchronize pull request shared translations
-        if: >-
-          github.event_name == 'pull_request' &&
-          github.actor != 'github-actions[bot]' &&
-          github.event.pull_request.head.repo.full_name == github.repository &&
-          steps.head-branch.outputs.exists == 'true'
-        run: >-
-          tooling-repo/.venv/bin/dsw-km-sync-repository-shared-strings
-          --repo-root "$GITHUB_WORKSPACE/translation-repo"
-          --config "${{ env.TRANSLATION_CONFIG }}"
-
-      - name: Commit synchronized pull request shared translations
-        if: >-
-          github.event_name == 'pull_request' &&
-          github.actor != 'github-actions[bot]' &&
-          github.event.pull_request.head.repo.full_name == github.repository &&
-          steps.head-branch.outputs.exists == 'true'
-        working-directory: translation-repo
-        env:
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        run: |
-          if git diff --quiet -- tree; then
-            echo "Shared translations are already synchronized."
-            exit 0
-          fi
-
-          git diff --check
-          while IFS= read -r path; do
-            case "$path" in
-              tree/shared_blocks/*/context.md | tree/*/translation.md)
-                ;;
-              *)
-                echo "::error file=$path::Shared translation sync changed an unexpected path."
-                exit 1
-                ;;
-            esac
-          done < <(git diff --name-only -- tree)
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- tree
-          git commit -m "chore(sync): expand shared translations"
-          git push origin "HEAD:$HEAD_REF"
-
-      - name: Report GitHub translation changes
-        id: github-translations
-        if: github.event_name == 'pull_request'
-        run: >-
-          tooling-repo/.venv/bin/dsw-km-report-github-translations
-          --repo-root "$GITHUB_WORKSPACE/translation-repo"
-          --config "${{ env.TRANSLATION_CONFIG }}"
-          --base-ref "base/pr-base"
-          --head-ref "HEAD"
-          --json-out "$RUNNER_TEMP/github_translation_report.json"
-          --details-out "$RUNNER_TEMP/github_translation_report.md"
-          --summary "$GITHUB_STEP_SUMMARY"
-          --github-output "$GITHUB_OUTPUT"
-
-      - name: Upload GitHub translation report
-        if: always() && github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v7
-        with:
-          name: github-translation-report
-          if-no-files-found: ignore
-          path: |
-            ${{ runner.temp }}/github_translation_report.json
-            ${{ runner.temp }}/github_translation_report.md
-
-      - name: Explain translation PR sync skip
-        if: >-
-          github.event_name == 'pull_request' &&
-          steps.github-translations.outputs.has_translation_changes == 'true'
-        run: >-
-          echo "This PR changes translation text. Weblate-to-Git writer sync is
-          skipped so the reviewed GitHub translation can be imported after
-          merge."
-
-      - name: Explain fork PR sync skip
-        if: >-
-          github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name != github.repository
-        run: echo "This workflow reports fork PR translation changes but never writes to forks."
-
-      - name: Explain deleted PR branch sync skip
-        if: >-
-          github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name == github.repository &&
-          steps.head-branch.outputs.exists != 'true'
-        run: echo "The pull request head branch no longer exists. Weblate-to-Git writer sync is skipped."
-
       - name: Pull Localize, sync, validate, and auto-commit artifacts
-        if: >-
-          github.event_name != 'pull_request' ||
-          (github.event.pull_request.head.repo.full_name == github.repository &&
-          steps.head-branch.outputs.exists == 'true' &&
-          steps.github-translations.outputs.has_translation_changes != 'true')
-        env:
-          SYNC_MODE: ${{ github.event_name == 'pull_request' && 'pull_request' || 'schedule' }}
         run: >-
           tooling-repo/.venv/bin/dsw-km-sync-localize
           --host-repo "$GITHUB_WORKSPACE/translation-repo"
           --tooling-repo "$GITHUB_WORKSPACE/tooling-repo"
           --config "${{ env.TRANSLATION_CONFIG }}"
           --translation-root "${{ env.TRANSLATION_ROOT }}"
-          --target-ref "${{ github.event_name == 'pull_request' &&
-          github.event.pull_request.head.ref || env.TRACKING_BRANCH }}"
+          --target-ref "${{ env.TRACKING_BRANCH }}"
           --restore-source-ref "base/${{ env.TRACKING_BRANCH }}"
-          --mode "$SYNC_MODE"
+          --mode "schedule"

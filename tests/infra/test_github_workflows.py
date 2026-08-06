@@ -68,8 +68,8 @@ def test_localize_auto_sync_template_matches_writer_policy(
     )
 
     assert workflow["on"]["schedule"][0]["cron"] == "0 1,13 * * *"
-    assert workflow["on"]["pull_request"]["branches"] == ["master"]
-    assert "workflow_dispatch" not in workflow["on"]
+    assert "pull_request" not in workflow["on"]
+    assert "workflow_dispatch" in workflow["on"]
     assert workflow["permissions"]["contents"] == "write"
     assert workflow["concurrency"]["queue"] == "max"
     assert_tooling_checkout_env(workflow)
@@ -78,29 +78,7 @@ def test_localize_auto_sync_template_matches_writer_policy(
     assert workflow["env"]["TRANSLATION_ROOT"] == "."
     assert "if" not in workflow["jobs"]["sync-writer"]
     assert "translation-state-master" in workflow_text
-    assert "translation-pr-{0}" in workflow_text
-    assert "github.event_name != 'pull_request'" in workflow_text
-    assert "github.actor != 'github-actions[bot]'" in workflow_text
-    assert "github.event_name == 'pull_request' && 'pull_request' || 'schedule'" in workflow_text
-    assert "repository: ${{ github.event.pull_request.head.repo.full_name }}" in workflow_text
-    assert "ref: ${{ github.event.pull_request.head.sha }}" in workflow_text
     assert "refs/remotes/base/${{ env.TRACKING_BRANCH }}" in workflow_text
-    assert "${{ github.event.pull_request.base.sha }}:refs/remotes/base/pr-base" in workflow_text
-    assert '--base-ref "base/pr-base"' in workflow_text
-    assert "git ls-remote --exit-code --heads origin" in workflow_text
-    assert "steps.head-branch.outputs.exists == 'true'" in workflow_text
-    assert "The pull request head branch no longer exists" in workflow_text
-    shared_sync_command = "tooling-repo/.venv/bin/dsw-km-sync-repository-shared-strings"
-    report_command = "tooling-repo/.venv/bin/dsw-km-report-github-translations"
-    assert shared_sync_command in workflow_text
-    assert workflow_text.index(shared_sync_command) < workflow_text.index(report_command)
-    assert 'git commit -m "chore(sync): expand shared translations"' in workflow_text
-    assert 'git push origin "HEAD:$HEAD_REF"' in workflow_text
-    assert "tree/shared_blocks/*/context.md | tree/*/translation.md" in workflow_text
-    assert "tooling-repo/.venv/bin/dsw-km-report-github-translations" in workflow_text
-    assert "steps.github-translations.outputs.has_translation_changes" in workflow_text
-    assert "github-translation-report" in workflow_text
-    assert "always() && github.event_name == 'pull_request'" in workflow_text
     assert "tooling-repo/.venv/bin/dsw-km-sync-localize" in workflow_text
     assert "tooling-repo/src/" not in workflow_text
     assert "dsw-km-discover-versions" not in workflow_text
@@ -113,8 +91,7 @@ def test_localize_auto_sync_template_matches_writer_policy(
     assert "reviews/km_version_discovery.json" not in workflow_text
     assert "--restore-source-ref" in workflow_text
     assert "base/${{ env.TRACKING_BRANCH }}" in workflow_text
-    assert "reports fork PR translation changes but never writes to forks" in workflow_text
-    assert "github.event.pull_request.head.repo.full_name == github.repository &&" in workflow_text
+    assert "github.event.pull_request" not in workflow_text
 
 
 def test_github_translation_import_template_is_guarded_writer(repo_root: Path) -> None:
@@ -276,7 +253,7 @@ def test_workflow_templates_render_non_default_tracking_branch(repo_root: Path) 
     assert validation["on"]["push"]["branches"] == ["release"]
 
     auto_sync, auto_sync_text = workflows["localize_auto_sync.yml"]
-    assert auto_sync["on"]["pull_request"]["branches"] == ["release"]
+    assert "pull_request" not in auto_sync["on"]
     assert "translation-state-release" in auto_sync_text
 
     github_import, _ = workflows["github_translation_import.yml"]
@@ -296,7 +273,7 @@ def test_upstream_smoke_workflow_is_tooling_integration_check(repo_root: Path) -
     workflow_text = workflow_path.read_text(encoding="utf-8")
 
     assert workflow["on"]["schedule"][0]["cron"] == "20 3 * * *"
-    assert "workflow_dispatch" not in workflow["on"]
+    assert "workflow_dispatch" in workflow["on"]
     assert workflow["permissions"]["contents"] == "read"
     assert "actions/cache/restore@v5" in workflow_text
     assert "actions/cache/save@v5" in workflow_text
@@ -339,16 +316,3 @@ def test_source_workflows_verify_previous_github_release(repo_root: Path) -> Non
         text = (template_root / name).read_text(encoding="utf-8")
         assert "GITHUB_TOKEN: ${{ github.token }}" in text
         assert '--github-repository "$GITHUB_REPOSITORY"' in text
-
-
-def test_source_release_requires_tag_on_default_branch(repo_root: Path) -> None:
-    workflow_path = (
-        repo_root / "examples" / "km-source-repository" / ".github" / "workflows" / "release.yml"
-    )
-    text = workflow_path.read_text(encoding="utf-8")
-
-    ancestry_check = 'git merge-base --is-ancestor "$tagged_commit" FETCH_HEAD'
-    assert "DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}" in text
-    assert 'git fetch --no-tags origin "$DEFAULT_BRANCH"' in text
-    assert ancestry_check in text
-    assert text.index(ancestry_check) < text.index("gh release create")

@@ -18,7 +18,7 @@ workflow.
 | Workflow | GitHub permission | Secrets | Writes translations? |
 | --- | --- | --- | --- |
 | [Tooling upstream smoke][upstream-smoke-workflow] | `contents: read` | `DSW_REGISTRY_TOKEN` | No |
-| [Localize auto sync][localize-auto-sync-template] | `contents: write` | none | Writes Git only |
+| [Localize auto sync][localize-auto-sync-template] | `contents: write` | none | Writes the tracking branch from trusted scheduled or manual runs |
 | [GitHub translation import][github-import-template] | `contents: write` | `LOCALIZE_API_TOKEN` | Writes Weblate after merge, then writes Git through sync |
 | [Localize status report][localize-status-template] | `contents: read` | optional `LOCALIZE_API_TOKEN` | No |
 | [Localize alignment report][localize-alignment-template] | `contents: read` | none | No |
