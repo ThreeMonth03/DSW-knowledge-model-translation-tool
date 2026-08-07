@@ -58,7 +58,7 @@ class DswModelsBundleAdapter:
             root: Parsed KM bundle payload.
         """
 
-        normalized_root = cls._normalize_edit_event_fields(root)
+        normalized_root = cls._normalize_bundle_root(root)
         cls._bundle_class().model_validate(normalized_root)
 
     @classmethod
@@ -80,7 +80,7 @@ class DswModelsBundleAdapter:
 
         bundle_class = cls._bundle_class()
         root = json.loads(Path(model_path).read_text(encoding="utf-8"))
-        normalized_root = cls._normalize_edit_event_fields(root)
+        normalized_root = cls._normalize_bundle_root(root)
         bundle = bundle_class.model_validate(normalized_root)
 
         events: list[TypedKnowledgeModelEvent] = []
@@ -185,6 +185,30 @@ class DswModelsBundleAdapter:
 
         lineage.reverse()
         return lineage
+
+    @classmethod
+    def _normalize_bundle_root(cls, root: dict[str, Any]) -> dict[str, Any]:
+        """Normalize known Registry/schema differences before validation.
+
+        Current Registry bundles may include a package-level ``language`` field
+        that is not yet modeled by the pinned ``dsw-models`` package. The field
+        is metadata only for this translation workflow, so remove it narrowly
+        while preserving strict validation for every other unknown field.
+
+        Args:
+            root: Parsed KM bundle payload.
+
+        Returns:
+            A normalized deep copy ready for official schema validation.
+        """
+
+        normalized = cls._normalize_edit_event_fields(root)
+        packages = normalized.get("packages")
+        if isinstance(packages, list):
+            for package in packages:
+                if isinstance(package, dict):
+                    package.pop("language", None)
+        return normalized
 
     @classmethod
     def _normalize_edit_event_fields(cls, value: Any) -> Any:
