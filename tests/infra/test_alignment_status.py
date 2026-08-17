@@ -209,7 +209,9 @@ def test_report_alignment_status_cli_writes_outputs(
     artifact_dir = workspace / "alignment-artifacts"
 
     latest_po = translation_repo / "sources/localize/zh_Hant/latest.po"
-    monkeypatch.setattr(alignment_status, "_download_url", _static_downloader(latest_po.read_bytes()))
+    monkeypatch.setattr(
+        alignment_status, "_download_url", _static_downloader(latest_po.read_bytes())
+    )
     monkeypatch.setattr(
         sys,
         "argv",

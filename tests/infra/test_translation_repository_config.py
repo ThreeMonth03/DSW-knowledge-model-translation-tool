@@ -219,9 +219,7 @@ def test_config_rejects_untrusted_tooling_repository(workspace: Path) -> None:
         "https://user:password@localize.ds-wizard.org/latest.po",
     ],
 )
-def test_config_rejects_unsafe_localize_download_url(
-    workspace: Path, download_url: str
-) -> None:
+def test_config_rejects_unsafe_localize_download_url(workspace: Path, download_url: str) -> None:
     config_path = workspace / "translation-config.yml"
     write_config(config_path)
     config_path.write_text(
