@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import difflib
+import re
 from pathlib import Path
 
 from .data_models import PoBlock, PoDiffReviewResult
@@ -70,6 +71,8 @@ class PoDiffReviewer:
             and changed_fuzzy_blocks == 0
             and inserted_blocks == 0
             and deleted_blocks == 0
+            and self._non_msgstr_lines(original_po_path)
+            == self._non_msgstr_lines(generated_po_path)
         )
 
         return PoDiffReviewResult(
@@ -90,6 +93,25 @@ class PoDiffReviewer:
         """Return stable reference tokens for one PO block."""
 
         return tuple(reference.comment for reference in block.references)
+
+    @staticmethod
+    def _non_msgstr_lines(po_path: str) -> tuple[str, ...]:
+        """Return the complete PO text with translation values normalized."""
+
+        lines = Path(po_path).read_text(encoding="utf-8").splitlines(keepends=True)
+        normalized: list[str] = []
+        index = 0
+        while index < len(lines):
+            match = re.match(r"^(msgstr(?:\[\d+\])?)\s", lines[index])
+            if match:
+                normalized.append(f"{match.group(1)}\n")
+                index += 1
+                while index < len(lines) and lines[index].startswith('"'):
+                    index += 1
+                continue
+            normalized.append(lines[index])
+            index += 1
+        return tuple(normalized)
 
     @staticmethod
     def _build_unified_diff(
