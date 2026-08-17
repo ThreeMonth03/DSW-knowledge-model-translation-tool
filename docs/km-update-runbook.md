@@ -34,7 +34,9 @@ The next scheduled run will retry.
 For a local maintainer run, use:
 
 ```shell
-make repo-km-update TRANSLATION_REPO_DIR=/path/to/dsw-root-locales-zh_Hant
+export TOOL_REPO_DIR=/path/to/dsw-km-translation-tool
+make -C "$TOOL_REPO_DIR" repo-km-update \
+  TRANSLATION_REPO_DIR=/path/to/dsw-root-locales-zh_Hant
 ```
 
 Set `TRANSLATION_REPO_DIR` as described in the
@@ -52,14 +54,15 @@ new KM update in a disposable branch or local clone.
 2. Discover available versions:
 
    ```shell
-   make repo-km-status TRANSLATION_REPO_DIR=/path/to/dsw-root-locales-zh_Hant
+   make -C "$TOOL_REPO_DIR" repo-km-status \
+     TRANSLATION_REPO_DIR=/path/to/dsw-root-locales-zh_Hant
    ```
 
 3. Run the same guarded updater against the disposable branch:
 
    ```shell
    export DSW_REGISTRY_TOKEN=...
-   make repo-km-update \
+   make -C "$TOOL_REPO_DIR" repo-km-update \
      TRANSLATION_REPO_DIR="$TRANSLATION_REPO_DIR" \
      TRACKING_BRANCH="$BRANCH_NAME"
    ```
@@ -67,8 +70,10 @@ new KM update in a disposable branch or local clone.
 4. Validate config and alignment if you are diagnosing a failed update:
 
    ```shell
-   make repo-validate TRANSLATION_REPO_DIR="$TRANSLATION_REPO_DIR"
-   make repo-align TRANSLATION_REPO_DIR="$TRANSLATION_REPO_DIR"
+   make -C "$TOOL_REPO_DIR" repo-validate \
+     TRANSLATION_REPO_DIR="$TRANSLATION_REPO_DIR"
+   make -C "$TOOL_REPO_DIR" repo-align \
+     TRANSLATION_REPO_DIR="$TRANSLATION_REPO_DIR"
    ```
 
 ## Review Manual Branch Outputs
