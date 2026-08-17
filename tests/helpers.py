@@ -93,6 +93,21 @@ def read_tree_manifest(tree_dir: Path) -> dict[str, object]:
     return json.loads(manifest_path.read_text(encoding="utf-8"))
 
 
+def resolve_tree_node_path(tree_dir: Path, node_path: object) -> Path:
+    """Resolve a manifest node path while confining it to the tree root."""
+
+    assert isinstance(node_path, str), "Manifest node path must be a string"
+    relative_path = Path(node_path)
+    assert not relative_path.is_absolute(), f"Manifest node path must be relative: {node_path}"
+
+    tree_root = tree_dir.resolve()
+    resolved_path = (tree_root / relative_path).resolve()
+    assert resolved_path.is_relative_to(tree_root), (
+        f"Manifest node path escapes the translation tree: {node_path}"
+    )
+    return resolved_path
+
+
 def inspect_translation_tree_disk_state(
     workflow: TranslationWorkflowService,
     tree_dir: Path,
@@ -136,8 +151,7 @@ def inspect_translation_tree_disk_state(
     document = workflow.tree_repository.document
     for entity_uuid, node in sorted(expected_nodes.items()):
         assert isinstance(node, dict), f"Manifest node for {entity_uuid} must be a dictionary"
-        relative_path = node["path"]
-        folder_path = tree_dir / relative_path
+        folder_path = resolve_tree_node_path(tree_dir, node["path"])
         assert folder_path.is_dir(), f"Missing node folder: {folder_path}"
 
         uuid_path = folder_path / UUID_FILENAME

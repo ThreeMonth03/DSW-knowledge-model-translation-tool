@@ -19,6 +19,7 @@ from tests.helpers import (
     parse_po_entries,
     read_translation_markdown_header,
     read_tree_manifest,
+    resolve_tree_node_path,
 )
 
 
@@ -64,7 +65,7 @@ def test_translation_fixture_translation_markdown_headers_match_manifest_metadat
     for entity_uuid, node in manifest["nodes"].items():
         if not node.get("fields"):
             continue
-        translation_path = translation_tree_dir / node["path"] / "translation.md"
+        translation_path = resolve_tree_node_path(translation_tree_dir, node["path"]) / "translation.md"
         header_uuid, header_event_type = read_translation_markdown_header(translation_path)
         assert header_uuid == entity_uuid
         assert header_event_type == node.get("eventType")
@@ -110,7 +111,7 @@ def test_translation_fixture_tree_and_generated_po_stay_in_sync(
     for key, state in field_states.items():
         uuid, field = key
         node = manifest["nodes"][uuid]
-        translation_path = translation_tree_dir / node["path"] / "translation.md"
+        translation_path = resolve_tree_node_path(translation_tree_dir, node["path"]) / "translation.md"
         built_entry = po_entry_map[key]
         source_entry = source_entry_map[key]
         assert built_entry.msgid == source_entry.msgid
@@ -450,7 +451,7 @@ def test_translation_fixture_tree_validation_catches_missing_translation_markdow
     entity_uuid, node = next(
         (entity_uuid, node) for entity_uuid, node in manifest["nodes"].items() if node.get("fields")
     )
-    translation_path = tree_copy / node["path"] / "translation.md"
+    translation_path = resolve_tree_node_path(tree_copy, node["path"]) / "translation.md"
     translation_path.unlink()
 
     with pytest.raises(AssertionError, match="Missing translation markdown"):
@@ -480,7 +481,7 @@ def test_translation_fixture_tree_validation_catches_missing_node_folder(
     _, node = next(
         (entity_uuid, node) for entity_uuid, node in manifest["nodes"].items() if node.get("fields")
     )
-    shutil.rmtree(tree_copy / node["path"])
+    shutil.rmtree(resolve_tree_node_path(tree_copy, node["path"]))
 
     with pytest.raises(AssertionError, match="Tree folder UUID set does not match manifest"):
         inspect_translation_tree_disk_state(
@@ -509,7 +510,8 @@ def test_translation_fixture_tree_validation_catches_text_outside_fence(
     _, node = next(
         (entity_uuid, node) for entity_uuid, node in manifest["nodes"].items() if node.get("fields")
     )
-    corrupt_translation_by_appending_outside_fence(tree_copy / node["path"] / "translation.md")
+    translation_path = resolve_tree_node_path(tree_copy, node["path"]) / "translation.md"
+    corrupt_translation_by_appending_outside_fence(translation_path)
 
     with pytest.raises(ValueError, match="Unexpected content outside a fenced translation block"):
         inspect_translation_tree_disk_state(
@@ -538,10 +540,22 @@ def test_translation_fixture_tree_validation_catches_broken_fence(
     _, node = next(
         (entity_uuid, node) for entity_uuid, node in manifest["nodes"].items() if node.get("fields")
     )
-    corrupt_translation_by_breaking_final_fence(tree_copy / node["path"] / "translation.md")
+    translation_path = resolve_tree_node_path(tree_copy, node["path"]) / "translation.md"
+    corrupt_translation_by_breaking_final_fence(translation_path)
 
     with pytest.raises(ValueError, match="Broken fence detected|Unclosed fence"):
         inspect_translation_tree_disk_state(
             workflow=workflow,
             tree_dir=tree_copy,
         )
+
+
+@pytest.mark.parametrize("node_path", ["../../outside", "/tmp/outside"])
+def test_tree_node_paths_cannot_escape_tree(tmp_path, node_path) -> None:
+    """Reject manifest paths that could make tests modify files outside the tree."""
+
+    tree_dir = tmp_path / "tree"
+    tree_dir.mkdir()
+
+    with pytest.raises(AssertionError, match="must be relative|escapes the translation tree"):
+        resolve_tree_node_path(tree_dir, node_path)
