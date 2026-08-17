@@ -17,6 +17,9 @@ from .translation_repository_config import (
 )
 
 
+_MAX_WEBLATE_PAGES = 1000
+
+
 @dataclass(frozen=True)
 class WeblateCheckIssue:
     """One Weblate unit returned by a check query."""
@@ -92,13 +95,24 @@ def build_weblate_checks_report(
     issues: list[WeblateCheckIssue] = []
     next_url: str | None = api_url
     total_count = 0
+    visited_urls: set[str] = set()
     while next_url:
+        if next_url in visited_urls:
+            raise ValueError("Weblate pagination contains a cycle")
+        if len(visited_urls) >= _MAX_WEBLATE_PAGES:
+            raise ValueError(f"Weblate pagination exceeds {_MAX_WEBLATE_PAGES} pages")
+        visited_urls.add(next_url)
         payload = _download_json(next_url, download)
         total_count = int(payload.get("count") or 0)
         for unit in payload.get("results", ()):
             if isinstance(unit, dict):
                 issues.append(_build_issue(unit))
-        next_url = payload.get("next") if isinstance(payload.get("next"), str) else None
+        pagination_url = payload.get("next")
+        next_url = (
+            _validate_pagination_url(next_url, pagination_url, api_url)
+            if isinstance(pagination_url, str)
+            else None
+        )
 
     return WeblateChecksReport(
         api_url=api_url,
@@ -106,6 +120,30 @@ def build_weblate_checks_report(
         count=total_count,
         issues=tuple(issues),
     )
+
+
+def _validate_pagination_url(current_url: str, next_url: str, api_url: str) -> str:
+    """Resolve a pagination URL while keeping requests on the API origin."""
+
+    resolved_url = urllib.parse.urljoin(current_url, next_url)
+    parsed_api_url = urllib.parse.urlparse(api_url)
+    parsed_next_url = urllib.parse.urlparse(resolved_url)
+    api_origin = (
+        parsed_api_url.scheme.lower(),
+        parsed_api_url.hostname,
+        parsed_api_url.port,
+    )
+    next_origin = (
+        parsed_next_url.scheme.lower(),
+        parsed_next_url.hostname,
+        parsed_next_url.port,
+    )
+    if (
+        parsed_next_url.scheme.lower() not in {"http", "https"}
+        or next_origin != api_origin
+    ):
+        raise ValueError("Weblate pagination URL has an untrusted origin")
+    return resolved_url
 
 
 def build_weblate_checks_error_report(
@@ -143,14 +181,18 @@ def resolve_weblate_units_api_url(
 ) -> str:
     """Resolve the Weblate units API URL from a Localize download URL."""
 
-    resolved_config_path = config_path if config_path.is_absolute() else repo_root / config_path
+    resolved_config_path = (
+        config_path if config_path.is_absolute() else repo_root / config_path
+    )
     repository_config = load_translation_repository_config(resolved_config_path)
     localize = require_localize_config(repository_config)
     parsed_url = urllib.parse.urlparse(localize.download_url)
     path_parts = [part for part in parsed_url.path.split("/") if part]
     try:
         download_index = path_parts.index("download")
-        project, component, language = path_parts[download_index + 1 : download_index + 4]
+        project, component, language = path_parts[
+            download_index + 1 : download_index + 4
+        ]
     except (ValueError, IndexError) as error:
         raise ValueError(
             "Cannot derive Weblate API coordinates from localize.download_url"
@@ -204,7 +246,9 @@ def render_weblate_checks_markdown(
         lines.append("No Weblate units currently match this query.")
         return "\n".join(lines) + "\n"
 
-    visible_issues = report.issues if issue_limit is None else report.issues[:issue_limit]
+    visible_issues = (
+        report.issues if issue_limit is None else report.issues[:issue_limit]
+    )
     lines.extend(
         [
             "| Unit | State | Source | Target | API |",
@@ -273,11 +317,15 @@ def _authenticated_downloader(
 
     trusted_origin = _url_origin(trusted_api_origin)
     if _url_origin(api_url) != trusted_origin:
-        raise ValueError("Refusing to send the Weblate API token to an untrusted origin")
+        raise ValueError(
+            "Refusing to send the Weblate API token to an untrusted origin"
+        )
 
     def download(url: str) -> bytes:
         if _url_origin(url) != trusted_origin:
-            raise ValueError("Refusing to send the Weblate API token to an untrusted origin")
+            raise ValueError(
+                "Refusing to send the Weblate API token to an untrusted origin"
+            )
         request = urllib.request.Request(
             url,
             headers={"Authorization": bearer_authorization_header(token)},

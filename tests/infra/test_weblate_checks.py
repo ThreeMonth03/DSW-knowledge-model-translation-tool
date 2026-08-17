@@ -8,6 +8,7 @@ from pathlib import Path
 
 from pytest import MonkeyPatch
 
+from dsw_km_translation_tool import weblate_checks
 from dsw_km_translation_tool.weblate_checks import (
     build_weblate_checks_error_report,
     build_weblate_checks_report,
@@ -90,7 +91,7 @@ def test_weblate_checks_report_follows_pagination(workspace: Path) -> None:
             return json.dumps(
                 {
                     "count": 2,
-                    "next": "https://localize.example.invalid/page-2",
+                    "next": "/page-2",
                     "results": [
                         {
                             "id": 1,
@@ -130,7 +131,7 @@ def test_weblate_checks_report_follows_pagination(workspace: Path) -> None:
     assert report.count == 2
     assert len(report.issues) == 2
     assert report.issues[0].source == ("Source A",)
-    assert requested_urls[1] == "https://localize.example.invalid/page-2"
+    assert requested_urls[1] == "https://localize.ds-wizard.org/page-2"
     markdown = render_weblate_checks_markdown(report)
     assert "Matching units: **2**" in markdown
     assert "Source A" in markdown
@@ -182,7 +183,9 @@ def test_weblate_checks_report_rejects_untrusted_token_origin(workspace: Path) -
     """Verify repository config cannot redirect the API token to another host."""
 
     config_path = workspace / "translation-config.yml"
-    write_config(config_path, "https://attacker.invalid/download/project/component/lang/")
+    write_config(
+        config_path, "https://attacker.invalid/download/project/component/lang/"
+    )
 
     try:
         build_weblate_checks_report(
@@ -221,7 +224,9 @@ def test_weblate_checks_report_rejects_cross_origin_authenticated_pagination(
                 {"count": 0, "next": "https://attacker.invalid/page-2", "results": []}
             ).encode()
 
-    monkeypatch.setattr(urllib.request, "urlopen", lambda *_args, **_kwargs: FakeResponse())
+    monkeypatch.setattr(
+        urllib.request, "urlopen", lambda *_args, **_kwargs: FakeResponse()
+    )
 
     try:
         build_weblate_checks_report(
@@ -233,6 +238,96 @@ def test_weblate_checks_report_rejects_cross_origin_authenticated_pagination(
         assert "untrusted origin" in str(error)
     else:
         raise AssertionError("a cross-origin pagination URL was accepted")
+
+
+def test_weblate_checks_report_rejects_cross_origin_anonymous_pagination(
+    workspace: Path,
+) -> None:
+    """Verify anonymous pagination cannot request a different origin."""
+
+    config_path = workspace / "translation-config.yml"
+    write_config(
+        config_path,
+        "https://localize.ds-wizard.org/download/project/component/lang/",
+    )
+
+    def downloader(_url: str) -> bytes:
+        return json.dumps(
+            {"count": 0, "next": "http://127.0.0.1/metadata", "results": []}
+        ).encode()
+
+    try:
+        build_weblate_checks_report(
+            repo_root=workspace,
+            config_path=config_path,
+            downloader=downloader,
+        )
+    except ValueError as error:
+        assert "untrusted origin" in str(error)
+    else:
+        raise AssertionError("a cross-origin pagination URL was accepted")
+
+
+def test_weblate_checks_report_rejects_pagination_cycle(workspace: Path) -> None:
+    """Verify cyclic pagination stops without repeatedly downloading pages."""
+
+    config_path = workspace / "translation-config.yml"
+    write_config(
+        config_path,
+        "https://localize.ds-wizard.org/download/project/component/lang/",
+    )
+    request_count = 0
+
+    def downloader(url: str) -> bytes:
+        nonlocal request_count
+        request_count += 1
+        return json.dumps({"count": 0, "next": url, "results": []}).encode()
+
+    try:
+        build_weblate_checks_report(
+            repo_root=workspace,
+            config_path=config_path,
+            downloader=downloader,
+        )
+    except ValueError as error:
+        assert "cycle" in str(error)
+    else:
+        raise AssertionError("a pagination cycle was accepted")
+    assert request_count == 1
+
+
+def test_weblate_checks_report_limits_page_count(
+    workspace: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """Verify excessive pagination stops at the configured safety limit."""
+
+    config_path = workspace / "translation-config.yml"
+    write_config(
+        config_path,
+        "https://localize.ds-wizard.org/download/project/component/lang/",
+    )
+    request_count = 0
+
+    def downloader(_url: str) -> bytes:
+        nonlocal request_count
+        request_count += 1
+        return json.dumps(
+            {"count": 0, "next": f"/page-{request_count}", "results": []}
+        ).encode()
+
+    monkeypatch.setattr(weblate_checks, "_MAX_WEBLATE_PAGES", 2)
+    try:
+        build_weblate_checks_report(
+            repo_root=workspace,
+            config_path=config_path,
+            downloader=downloader,
+        )
+    except ValueError as error:
+        assert "exceeds 2 pages" in str(error)
+    else:
+        raise AssertionError("excessive pagination was accepted")
+    assert request_count == 2
 
 
 def test_weblate_checks_error_report_is_diagnostic(workspace: Path) -> None:
