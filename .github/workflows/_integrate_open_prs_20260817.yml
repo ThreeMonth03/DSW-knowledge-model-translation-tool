@@ -1,0 +1,137 @@
+name: Integrate remaining open PRs
+
+on:
+  push:
+    branches:
+      - integration/resolve-open-prs-20260817
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out integration branch
+        uses: actions/checkout@v5
+        with:
+          ref: integration/resolve-open-prs-20260817
+          fetch-depth: 0
+
+      - name: Merge reviewed PR branches
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cat > .git/info/attributes <<'ATTRS'
+          tests/infra/test_alignment_status.py merge=union
+          tests/infra/test_localize_sync.py merge=union
+          tests/infra/test_translation_repository_config.py merge=union
+          tests/infra/test_cli_review.py merge=union
+          ATTRS
+
+          while read -r number branch; do
+            echo "::group::Merge PR #${number} (${branch})"
+            git fetch --no-tags origin \
+              "refs/heads/${branch}:refs/remotes/incoming/pr-${number}"
+            git merge --no-ff --no-edit \
+              "refs/remotes/incoming/pr-${number}" \
+              -m "Merge reviewed PR #${number} into integration branch"
+            echo "::endgroup::"
+          done <<'PRS'
+          59 codex/fix-alignment-report-url-vulnerability
+          60 codex/propose-fix-for-field-state-json-vulnerability
+          61 codex/fix-po-diff-review-non-msgstr-detection
+          PRS
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install development dependencies
+        run: make install-dev BOOTSTRAP_PYTHON=python
+
+      - name: Complete PR 61 hardening and normalize files
+        run: |
+          set -euo pipefail
+          .venv/bin/python - <<'PY'
+          from pathlib import Path
+
+          source_path = Path("src/dsw_km_translation_tool/review.py")
+          source = source_path.read_text(encoding="utf-8")
+          old = (
+              '            if re.match(r"^msgstr(?:\\[\\d+\\])?\\s", lines[index]):\n'
+              '                normalized.append("msgstr\\n")\n'
+              '                index += 1\n'
+          )
+          new = (
+              '            match = re.match(r"^(msgstr(?:\\[\\d+\\])?)\\s", lines[index])\n'
+              '            if match:\n'
+              '                normalized.append(f"{match.group(1)}\\n")\n'
+              '                index += 1\n'
+          )
+          if old in source:
+              source_path.write_text(source.replace(old, new, 1), encoding="utf-8")
+          elif 'normalized.append(f"{match.group(1)}\\n")' not in source:
+              raise SystemExit("PR 61 msgstr normalization block changed unexpectedly")
+
+          test_path = Path("tests/infra/test_cli_review.py")
+          tests = test_path.read_text(encoding="utf-8")
+          test_name = "def test_review_rejects_plural_msgstr_index_changes"
+          if test_name not in tests:
+              marker = "\n\ndef test_review_po_cli_reports_msgstr_only_changes_for_generated_output(\n"
+              if marker not in tests:
+                  raise SystemExit("PR 61 test insertion point changed")
+              regression = '''
+
+          def test_review_rejects_plural_msgstr_index_changes(tmp_path) -> None:
+              """Plural translation indexes are structural, not translation values."""
+
+              original_path = tmp_path / "original.po"
+              generated_path = tmp_path / "generated.po"
+              original_path.write_text(
+                  'msgid "item"\\nmsgid_plural "items"\\n'
+                  'msgstr[0] "one"\\nmsgstr[1] "many"\\n',
+                  encoding="utf-8",
+              )
+              generated_path.write_text(
+                  'msgid "item"\\nmsgid_plural "items"\\n'
+                  'msgstr[0] "one"\\nmsgstr[2] "many"\\n',
+                  encoding="utf-8",
+              )
+
+              review = PoDiffReviewer().review(str(original_path), str(generated_path))
+
+              assert review.msgstr_only is False
+          '''
+              regression = "\n".join(
+                  line[10:] if line.startswith("          ") else line
+                  for line in regression.splitlines()
+              )
+              test_path.write_text(
+                  tests.replace(marker, regression + marker, 1),
+                  encoding="utf-8",
+              )
+          PY
+          rm -f .github/workflows/_agent_harden_pr61.yml
+          .venv/bin/python -m ruff check --fix --config config/ruff.toml src tests
+          .venv/bin/python -m ruff format --config config/ruff.toml src tests
+
+      - name: Run focused regressions
+        run: |
+          set -euo pipefail
+          .venv/bin/python -m pytest -q \
+            tests/infra/test_alignment_status.py \
+            tests/infra/test_localize_sync.py \
+            tests/infra/test_translation_repository_config.py \
+            tests/infra/test_cli_review.py \
+            tests/translation/test_field_state_storage.py
+
+      - name: Commit integration and remove helper
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/_integrate_open_prs_20260817.yml
+          git add -A
+          git commit -m "security: integrate reviewed open PR fixes"
+          git push origin HEAD:integration/resolve-open-prs-20260817
