@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from dsw_km_translation_tool.localize_status import (
     build_localize_po_status_report,
     render_localize_po_status_markdown,
@@ -124,6 +126,40 @@ def test_localize_po_status_writes_full_markdown_details(workspace: Path) -> Non
     assert "### Fuzzy / Needs Editing Entries" in details
     assert "Review me" in details
     assert "... and" not in details
+
+
+def test_localize_po_status_refuses_symlinked_markdown_output(workspace: Path) -> None:
+    """Verify Markdown output cannot append through an attacker-controlled symlink."""
+
+    po_path = workspace / "latest.po"
+    target_path = workspace / "sensitive.txt"
+    details_path = workspace / "details.md"
+    write_status_fixture_po(po_path)
+    target_path.write_text("secret\n", encoding="utf-8")
+    details_path.symlink_to(target_path)
+
+    with pytest.raises((OSError, ValueError)):
+        write_localize_po_status_markdown(build_localize_po_status_report(po_path), details_path)
+
+    assert target_path.read_text(encoding="utf-8") == "secret\n"
+
+
+def test_localize_po_status_refuses_symlinked_markdown_parent(workspace: Path) -> None:
+    """Verify Markdown output cannot escape through a symlinked parent directory."""
+
+    po_path = workspace / "latest.po"
+    outside_path = workspace / "outside"
+    reports_path = workspace / "reports"
+    write_status_fixture_po(po_path)
+    outside_path.mkdir()
+    reports_path.symlink_to(outside_path, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlinked artifact path"):
+        write_localize_po_status_markdown(
+            build_localize_po_status_report(po_path), reports_path / "details.md"
+        )
+
+    assert not (outside_path / "details.md").exists()
 
 
 def test_report_localize_status_cli_writes_outputs(

@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from .data_models import PoBlock
+from .path_safety import reject_symlink_path
 from .po import PoCatalogParser
 
 
@@ -252,8 +254,18 @@ def write_localize_po_status_markdown(
     """Append a status report to a Markdown file."""
 
     path = Path(output_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as handle:
+    absolute_path = path if path.is_absolute() else Path.cwd() / path
+    filesystem_root = Path(absolute_path.anchor)
+    reject_symlink_path(absolute_path, root=filesystem_root)
+    absolute_path.parent.mkdir(parents=True, exist_ok=True)
+    reject_symlink_path(absolute_path, root=filesystem_root)
+    flags = os.O_APPEND | os.O_CREAT | os.O_WRONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    elif absolute_path.is_symlink():
+        raise ValueError(f"Refusing to write Markdown report through symlink: {absolute_path}")
+    descriptor = os.open(absolute_path, flags, 0o666)
+    with os.fdopen(descriptor, "a", encoding="utf-8") as handle:
         handle.write(render_localize_po_status_markdown(report, issue_limit=issue_limit))
 
 
