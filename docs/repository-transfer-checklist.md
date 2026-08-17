@@ -4,13 +4,21 @@ Use this checklist when moving the tooling repository to another GitHub owner or
 organization. The goal is to keep translation automation working without
 changing translation text or uploading anything to Weblate.
 
+Set `TOOL_REPO_DIR` to the trusted tooling checkout before running this
+checklist:
+
+```shell
+export TOOL_REPO_DIR=/path/to/dsw-km-translation-tool
+```
+
 ## Before Transfer
 
 1. Confirm the current default branch is green in GitHub Actions.
 2. Confirm the production translation repository is aligned with Weblate:
 
    ```shell
-   make repo-align TRANSLATION_REPO_DIR="$TRANSLATION_REPO_DIR"
+   make -C "$TOOL_REPO_DIR" repo-align \
+     TRANSLATION_REPO_DIR="$TRANSLATION_REPO_DIR"
    ```
 
    Set `TRANSLATION_REPO_DIR` as described in the
@@ -58,10 +66,12 @@ move rather than documenting token values.
 Run these checks after updating references:
 
 ```shell
-make install-dev
-make check
-make repo-validate TRANSLATION_REPO_DIR="$TRANSLATION_REPO_DIR"
-make repo-align TRANSLATION_REPO_DIR="$TRANSLATION_REPO_DIR"
+make -C "$TOOL_REPO_DIR" install-dev
+make -C "$TOOL_REPO_DIR" check
+make -C "$TOOL_REPO_DIR" repo-validate \
+  TRANSLATION_REPO_DIR="$TRANSLATION_REPO_DIR"
+make -C "$TOOL_REPO_DIR" repo-align \
+  TRANSLATION_REPO_DIR="$TRANSLATION_REPO_DIR"
 ```
 
 Then trigger the read-only status and alignment workflows manually in the
