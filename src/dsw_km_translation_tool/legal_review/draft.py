@@ -183,9 +183,7 @@ def _validate_as_of_follows_source_history(
     if not conflicting_events:
         return
 
-    latest = max(
-        conflicting_events, key=lambda event: _parse_timestamp(event.created_at)
-    )
+    latest = max(conflicting_events, key=lambda event: _parse_timestamp(event.created_at))
     raise LegalReviewError(
         "legal mapping as_of must be later than the source history for every edited "
         f"entity; {latest.entity_uuid} has an event at {latest.created_at}"

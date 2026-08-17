@@ -352,9 +352,7 @@ def test_legal_draft_rejects_as_of_before_edited_entity_history(
         encoding="utf-8",
     )
 
-    with pytest.raises(
-        LegalReviewError, match="as_of must be later than the source history"
-    ):
+    with pytest.raises(LegalReviewError, match="as_of must be later than the source history"):
         build_legal_draft(
             km_path=model_path,
             mapping_path=mapping_path,
