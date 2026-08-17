@@ -8,12 +8,12 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
+from dsw_km_translation_tool import alignment_status
 from dsw_km_translation_tool.alignment_status import (
     build_alignment_status_report,
     render_alignment_status_markdown,
     write_alignment_status_json,
 )
-from dsw_km_translation_tool import alignment_status
 from dsw_km_translation_tool.cli import report_alignment_status
 
 

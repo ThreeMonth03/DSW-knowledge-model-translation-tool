@@ -47,6 +47,25 @@ def test_review_rejects_parser_ignored_non_msgstr_changes(
     assert review.msgstr_only is False
 
 
+def test_review_rejects_plural_msgstr_index_changes(tmp_path) -> None:
+    """Plural translation indexes are structural, not translation values."""
+
+    original_path = tmp_path / "original.po"
+    generated_path = tmp_path / "generated.po"
+    original_path.write_text(
+        'msgid "item"\nmsgid_plural "items"\nmsgstr[0] "one"\nmsgstr[1] "many"\n',
+        encoding="utf-8",
+    )
+    generated_path.write_text(
+        'msgid "item"\nmsgid_plural "items"\nmsgstr[0] "one"\nmsgstr[2] "many"\n',
+        encoding="utf-8",
+    )
+
+    review = PoDiffReviewer().review(str(original_path), str(generated_path))
+
+    assert review.msgstr_only is False
+
+
 def test_review_po_cli_reports_msgstr_only_changes_for_generated_output(
     repo_root,
     workflow,

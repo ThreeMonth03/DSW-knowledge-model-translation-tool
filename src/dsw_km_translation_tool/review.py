@@ -102,8 +102,9 @@ class PoDiffReviewer:
         normalized: list[str] = []
         index = 0
         while index < len(lines):
-            if re.match(r"^msgstr(?:\[\d+\])?\s", lines[index]):
-                normalized.append("msgstr\n")
+            match = re.match(r"^(msgstr(?:\[\d+\])?)\s", lines[index])
+            if match:
+                normalized.append(f"{match.group(1)}\n")
                 index += 1
                 while index < len(lines) and lines[index].startswith('"'):
                     index += 1
