@@ -90,6 +90,11 @@ def build_legal_draft(
         raise LegalReviewError(f"KM bundle already contains package {package_id}")
 
     as_of = _mapping_date(mapping.get("as_of"))
+    _validate_as_of_follows_source_history(
+        mapping=mapping,
+        km_path=km_path,
+        as_of=as_of,
+    )
     question_events = _build_question_events(
         mapping=mapping,
         latest_by_uuid=latest_by_uuid,
@@ -151,6 +156,39 @@ def build_legal_draft(
         package_id=package_id,
         parent_package_id=parent_package_id,
         event_count=len(events),
+    )
+
+
+def _validate_as_of_follows_source_history(
+    *,
+    mapping: dict[str, Any],
+    km_path: Path,
+    as_of: date,
+) -> None:
+    """Ensure generated edits sort after the source events they amend."""
+
+    target_uuids = {
+        str(item["source_uuid"])
+        for key in ("mappings", "content_overrides")
+        for item in mapping.get(key, [])
+    }
+    source_events, _ = DswModelsBundleAdapter.load_bundle_events(str(km_path))
+    as_of_timestamp = datetime.combine(as_of, datetime.min.time(), tzinfo=timezone.utc)
+    conflicting_events = [
+        event
+        for event in source_events
+        if event.entity_uuid in target_uuids
+        and _parse_timestamp(event.created_at) >= as_of_timestamp
+    ]
+    if not conflicting_events:
+        return
+
+    latest = max(
+        conflicting_events, key=lambda event: _parse_timestamp(event.created_at)
+    )
+    raise LegalReviewError(
+        "legal mapping as_of must be later than the source history for every edited "
+        f"entity; {latest.entity_uuid} has an event at {latest.created_at}"
     )
 
 
@@ -510,6 +548,13 @@ def _mapping_date(value: Any) -> date:
         except ValueError:
             pass
     raise LegalReviewError("legal mapping as_of must be an ISO date")
+
+
+def _parse_timestamp(value: str) -> datetime:
+    timestamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    return timestamp.astimezone(timezone.utc)
 
 
 def _format_timestamp(value: date) -> str:

@@ -340,6 +340,35 @@ def test_legal_draft_rejects_structural_mapping_actions(
         )
 
 
+def test_legal_draft_rejects_as_of_before_edited_entity_history(
+    workspace: Path,
+    model_path: Path,
+) -> None:
+    payload = _valid_mapping_payload(model_path)
+    payload["as_of"] = "2021-01-01"
+    mapping_path = workspace / "legal-mapping.yml"
+    mapping_path.write_text(
+        yaml.safe_dump(payload, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        LegalReviewError, match="as_of must be later than the source history"
+    ):
+        build_legal_draft(
+            km_path=model_path,
+            mapping_path=mapping_path,
+            output_path=workspace / "draft.km",
+            organization_id="tw",
+            km_id="root-tw",
+            version="0.1.0",
+            name="Taiwan DSW Knowledge Model",
+            description="Taiwan legal meeting draft.",
+            license_id="Apache-2.0",
+            readme="# Taiwan DSW Knowledge Model\n",
+        )
+
+
 def _valid_mapping_payload(model_path: Path) -> dict[str, object]:
     _, model_info = KnowledgeModelService.load_model(str(model_path))
     return {
