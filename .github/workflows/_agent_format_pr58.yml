@@ -1,0 +1,40 @@
+name: Format PR 58
+
+on:
+  push:
+    branches:
+      - codex/fix-manifest-path-traversal-vulnerability
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v5
+        with:
+          ref: codex/fix-manifest-path-traversal-vulnerability
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: make install-dev BOOTSTRAP_PYTHON=python
+
+      - name: Format and remove helper
+        run: |
+          set -euo pipefail
+          .venv/bin/python -m ruff format --config config/ruff.toml src tests
+          rm -f .github/workflows/_agent_format_pr58.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "style: format PR 58"
+          git push origin HEAD:codex/fix-manifest-path-traversal-vulnerability
