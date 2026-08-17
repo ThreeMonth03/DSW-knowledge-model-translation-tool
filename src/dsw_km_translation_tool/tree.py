@@ -21,6 +21,7 @@ from .data_models import (
     TreeScanResult,
     TreeValidationResult,
 )
+from .path_safety import reject_symlink_path
 from .tree_support import (
     TranslationBackupStore,
     TranslationFieldStateStore,
@@ -368,8 +369,18 @@ class TranslationTreeRepository:
         if not manifest:
             return
 
+        tree_root = Path(tree_dir).absolute()
         for entity_uuid, node in manifest.get("nodes", {}).items():
-            folder_path = Path(tree_dir) / node["path"]
+            relative_path = node.get("path")
+            if not isinstance(relative_path, str):
+                raise ValueError("Tree manifest node paths must be strings")
+            manifest_path = Path(relative_path)
+            folder_path = tree_root / manifest_path
+            if manifest_path.is_absolute() or ".." in manifest_path.parts:
+                raise ValueError(f"Unsafe tree manifest node path: {relative_path!r}")
+            reject_symlink_path(folder_path, root=tree_root)
+            if not folder_path.resolve().is_relative_to(tree_root.resolve()):
+                raise ValueError(f"Unsafe tree manifest node path: {relative_path!r}")
             folder_path.mkdir(parents=True, exist_ok=True)
             self.path_service.ensure_uuid_file(
                 folder_path=folder_path,

@@ -56,3 +56,59 @@ def test_remove_previous_export_rejects_root_symlink(tmp_path: Path) -> None:
         TranslationTreeRepository().remove_previous_export(str(tree_dir))
 
     assert victim_file.read_text(encoding="utf-8") == "keep"
+
+
+@pytest.mark.parametrize("node_path", ["../victim", "{absolute}"])
+def test_tree_healing_rejects_node_paths_outside_tree(
+    tmp_path: Path,
+    node_path: str,
+) -> None:
+    """An untrusted manifest cannot restore files outside its tree."""
+
+    tree_dir = tmp_path / "tree"
+    victim_dir = tmp_path / "victim"
+    tree_dir.mkdir()
+    (tree_dir / MANIFEST_NAME).write_text(
+        json.dumps(
+            {
+                "nodes": {
+                    "attacker-selected-uuid": {
+                        "path": node_path.format(absolute=victim_dir),
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Unsafe tree manifest node path"):
+        TranslationTreeRepository().scan(str(tree_dir))
+
+    assert victim_dir.exists() is False
+
+
+def test_tree_healing_rejects_symlinked_node_path(tmp_path: Path) -> None:
+    """A node symlink cannot redirect restoration outside the tree."""
+
+    tree_dir = tmp_path / "tree"
+    victim_dir = tmp_path / "victim"
+    tree_dir.mkdir()
+    victim_dir.mkdir()
+    (tree_dir / "node").symlink_to(victim_dir, target_is_directory=True)
+    (tree_dir / MANIFEST_NAME).write_text(
+        json.dumps(
+            {
+                "nodes": {
+                    "attacker-selected-uuid": {
+                        "path": "node",
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="symlinked artifact path"):
+        TranslationTreeRepository().scan(str(tree_dir))
+
+    assert (victim_dir / "_uuid.txt").exists() is False
