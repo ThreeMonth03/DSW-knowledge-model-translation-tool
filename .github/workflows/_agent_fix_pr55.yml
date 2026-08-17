@@ -1,0 +1,38 @@
+name: Fix PR 55 lint
+
+on:
+  push:
+    branches:
+      - codex/propose-fix-for-unvalidated-weblate-pagination
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v5
+        with:
+          ref: codex/propose-fix-for-unvalidated-weblate-pagination
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: make install-dev BOOTSTRAP_PYTHON=python
+
+      - name: Fix lint, format, and remove helper
+        run: |
+          set -euo pipefail
+          .venv/bin/python -m ruff check --fix --config config/ruff.toml src/dsw_km_translation_tool/weblate_checks.py
+          .venv/bin/python -m ruff format --config config/ruff.toml src tests
+          rm -f .github/workflows/_agent_fix_pr55.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "style: organize Weblate imports"
+          git push origin HEAD:codex/propose-fix-for-unvalidated-weblate-pagination
