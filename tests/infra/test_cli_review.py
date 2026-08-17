@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+
+from dsw_km_translation_tool.review import PoDiffReviewer
 from tests.helpers import (
     apply_translation_map_to_tree,
     build_empty_msgstr_translation_map,
@@ -13,6 +16,35 @@ from tests.infra.support import (
     run_review_po_cli,
     run_tree_to_po_cli,
 )
+
+
+@pytest.mark.parametrize(
+    "injected_line",
+    [
+        'msgctxt "attacker-controlled-context"\n',
+        "# arbitrary ignored comment\n",
+        "#: invalid-reference-token\n",
+    ],
+)
+def test_review_rejects_parser_ignored_non_msgstr_changes(
+    tmp_path,
+    injected_line,
+) -> None:
+    """Verify that the msgstr-only result accounts for every non-msgstr line."""
+
+    original_path = tmp_path / "original.po"
+    generated_path = tmp_path / "generated.po"
+    reference = "question:123e4567-e89b-12d3-a456-426614174000:title"
+    original = f'#: {reference}\nmsgid "Question"\nmsgstr "Translation"\n'
+    original_path.write_text(original, encoding="utf-8")
+    generated_path.write_text(
+        f"#: {reference}\n{injected_line}" + 'msgid "Question"\nmsgstr "Translation"\n',
+        encoding="utf-8",
+    )
+
+    review = PoDiffReviewer().review(str(original_path), str(generated_path))
+
+    assert review.msgstr_only is False
 
 
 def test_review_po_cli_reports_msgstr_only_changes_for_generated_output(
