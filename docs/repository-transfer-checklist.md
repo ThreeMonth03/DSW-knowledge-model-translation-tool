@@ -68,6 +68,6 @@ Then trigger the read-only status and alignment workflows manually in the
 production translation repository. Trigger writer workflows only after read-only
 checks are green.
 
-[example-translation-config]: https://github.com/ThreeMonth03/dsw-km-translation-tool/blob/master/examples/translation-config.yml
-[github-actions-templates]: https://github.com/ThreeMonth03/dsw-km-translation-tool/tree/master/examples/github-actions
-[test-github-workflows]: https://github.com/ThreeMonth03/dsw-km-translation-tool/blob/master/tests/infra/test_github_workflows.py
+[example-translation-config]: ../examples/translation-config.yml
+[github-actions-templates]: ../examples/github-actions
+[test-github-workflows]: ../tests/infra/test_github_workflows.py

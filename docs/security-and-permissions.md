@@ -68,10 +68,10 @@ Weblate access.
 Use forward commits for workflow, build output, report, or documentation fixes
 on public branches.
 
-[km-auto-update-template]: https://github.com/ThreeMonth03/dsw-km-translation-tool/blob/master/examples/github-actions/km_version_auto_update_template.yml
-[github-import-template]: https://github.com/ThreeMonth03/dsw-km-translation-tool/blob/master/examples/github-actions/github_translation_import_template.yml
-[github-actions-templates]: https://github.com/ThreeMonth03/dsw-km-translation-tool/tree/master/examples/github-actions
-[localize-alignment-template]: https://github.com/ThreeMonth03/dsw-km-translation-tool/blob/master/examples/github-actions/localize_alignment_report_template.yml
-[localize-auto-sync-template]: https://github.com/ThreeMonth03/dsw-km-translation-tool/blob/master/examples/github-actions/localize_auto_sync_template.yml
-[localize-status-template]: https://github.com/ThreeMonth03/dsw-km-translation-tool/blob/master/examples/github-actions/localize_status_report_template.yml
-[upstream-smoke-workflow]: https://github.com/ThreeMonth03/dsw-km-translation-tool/blob/master/.github/workflows/upstream_smoke.yml
+[km-auto-update-template]: ../examples/github-actions/km_version_auto_update_template.yml
+[github-import-template]: ../examples/github-actions/github_translation_import_template.yml
+[github-actions-templates]: ../examples/github-actions
+[localize-alignment-template]: ../examples/github-actions/localize_alignment_report_template.yml
+[localize-auto-sync-template]: ../examples/github-actions/localize_auto_sync_template.yml
+[localize-status-template]: ../examples/github-actions/localize_status_report_template.yml
+[upstream-smoke-workflow]: ../.github/workflows/upstream_smoke.yml
