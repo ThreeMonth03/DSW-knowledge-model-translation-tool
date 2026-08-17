@@ -151,6 +151,7 @@ def test_localize_status_report_template_is_read_only(repo_root: Path) -> None:
     assert "--known-" not in workflow_text
     assert "--allow-api-failure" in workflow_text
     assert "actions/upload-artifact@v7" in workflow_text
+    assert workflow_text.count("persist-credentials: false") == 2
     assert "dsw-km-sync-localize" not in workflow_text
     assert "tooling-repo/src/" not in workflow_text
     assert "contents: write" not in workflow_text

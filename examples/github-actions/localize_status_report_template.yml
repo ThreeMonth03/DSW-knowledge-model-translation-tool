@@ -25,6 +25,7 @@ jobs:
         with:
           ref: ${{ env.TRACKING_BRANCH }}
           path: translation-repo
+          persist-credentials: false
 
       - name: Checkout DSW KM Translation Tool
         uses: actions/checkout@v5
@@ -32,6 +33,7 @@ jobs:
           repository: ${{ env.TOOLING_REPOSITORY }}
           ref: ${{ env.TOOLING_REF }}
           path: tooling-repo
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v6

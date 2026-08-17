@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -253,7 +254,13 @@ def write_localize_po_status_markdown(
 
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as handle:
+    flags = os.O_APPEND | os.O_CREAT | os.O_WRONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    elif path.is_symlink():
+        raise ValueError(f"Refusing to write Markdown report through symlink: {path}")
+    descriptor = os.open(path, flags, 0o666)
+    with os.fdopen(descriptor, "a", encoding="utf-8") as handle:
         handle.write(render_localize_po_status_markdown(report, issue_limit=issue_limit))
 
 
