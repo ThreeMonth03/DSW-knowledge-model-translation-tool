@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import urllib.request
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,6 +13,7 @@ from dsw_km_translation_tool.cli import sync_from_localize
 from dsw_km_translation_tool.localize_sync import (
     LocalizePullResult,
     _download_url,
+    _SameOriginHttpsRedirectHandler,
     pull_localize_po,
 )
 from dsw_km_translation_tool.translation_repository_config import (
@@ -41,6 +43,59 @@ def test_downloader_rejects_local_file_urls() -> None:
 
     with pytest.raises(TranslationRepositoryConfigError, match="must be an HTTPS URL"):
         _download_url("file:///tmp/runner-secret")
+
+
+def test_redirect_handler_allows_same_origin_https_redirect() -> None:
+    """A normal relative redirect on the configured Localize origin is allowed."""
+
+    request = urllib.request.Request("https://localize.example.test/download/latest.po")
+    handler = _SameOriginHttpsRedirectHandler(request.full_url)
+
+    redirected = handler.redirect_request(
+        request,
+        None,
+        302,
+        "Found",
+        {},
+        "/downloads/current.po",
+    )
+
+    assert redirected is not None
+    assert redirected.full_url == "https://localize.example.test/downloads/current.po"
+
+
+def test_redirect_handler_rejects_https_downgrade() -> None:
+    """An HTTPS endpoint cannot redirect the downloader to an HTTP resource."""
+
+    request = urllib.request.Request("https://localize.example.test/download/latest.po")
+    handler = _SameOriginHttpsRedirectHandler(request.full_url)
+
+    with pytest.raises(TranslationRepositoryConfigError, match="must be an HTTPS URL"):
+        handler.redirect_request(
+            request,
+            None,
+            302,
+            "Found",
+            {},
+            "http://localize.example.test/internal",
+        )
+
+
+def test_redirect_handler_rejects_cross_origin_redirect() -> None:
+    """A configured endpoint cannot bounce the downloader to another HTTPS host."""
+
+    request = urllib.request.Request("https://localize.example.test/download/latest.po")
+    handler = _SameOriginHttpsRedirectHandler(request.full_url)
+
+    with pytest.raises(TranslationRepositoryConfigError, match="original HTTPS origin"):
+        handler.redirect_request(
+            request,
+            None,
+            302,
+            "Found",
+            {},
+            "https://attacker.example.test/redirected.po",
+        )
 
 
 def test_pull_localize_po_uses_configured_rolling_download_url(
