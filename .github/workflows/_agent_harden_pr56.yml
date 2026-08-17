@@ -43,32 +43,32 @@ jobs:
               raise SystemExit("localize_status import insertion point changed")
           source = source.replace(import_needle, import_replacement, 1)
 
-          old_block = '''    path = Path(output_path)
-              path.parent.mkdir(parents=True, exist_ok=True)
-              flags = os.O_APPEND | os.O_CREAT | os.O_WRONLY
-              if hasattr(os, "O_NOFOLLOW"):
-                  flags |= os.O_NOFOLLOW
-              elif path.is_symlink():
-                  raise ValueError(f"Refusing to write Markdown report through symlink: {path}")
-              descriptor = os.open(path, flags, 0o666)
-          '''
-          old_block = "\n".join(line[4:] if line.startswith("    ") else line for line in old_block.splitlines()) + "\n"
-          new_block = '''    path = Path(output_path)
-              absolute_path = path if path.is_absolute() else Path.cwd() / path
-              filesystem_root = Path(absolute_path.anchor)
-              reject_symlink_path(absolute_path, root=filesystem_root)
-              absolute_path.parent.mkdir(parents=True, exist_ok=True)
-              reject_symlink_path(absolute_path, root=filesystem_root)
-              flags = os.O_APPEND | os.O_CREAT | os.O_WRONLY
-              if hasattr(os, "O_NOFOLLOW"):
-                  flags |= os.O_NOFOLLOW
-              elif absolute_path.is_symlink():
-                  raise ValueError(
-                      f"Refusing to write Markdown report through symlink: {absolute_path}"
-                  )
-              descriptor = os.open(absolute_path, flags, 0o666)
-          '''
-          new_block = "\n".join(line[4:] if line.startswith("    ") else line for line in new_block.splitlines()) + "\n"
+          old_block = (
+              "    path = Path(output_path)\n"
+              "    path.parent.mkdir(parents=True, exist_ok=True)\n"
+              "    flags = os.O_APPEND | os.O_CREAT | os.O_WRONLY\n"
+              "    if hasattr(os, \"O_NOFOLLOW\"):\n"
+              "        flags |= os.O_NOFOLLOW\n"
+              "    elif path.is_symlink():\n"
+              "        raise ValueError(f\"Refusing to write Markdown report through symlink: {path}\")\n"
+              "    descriptor = os.open(path, flags, 0o666)\n"
+          )
+          new_block = (
+              "    path = Path(output_path)\n"
+              "    absolute_path = path if path.is_absolute() else Path.cwd() / path\n"
+              "    filesystem_root = Path(absolute_path.anchor)\n"
+              "    reject_symlink_path(absolute_path, root=filesystem_root)\n"
+              "    absolute_path.parent.mkdir(parents=True, exist_ok=True)\n"
+              "    reject_symlink_path(absolute_path, root=filesystem_root)\n"
+              "    flags = os.O_APPEND | os.O_CREAT | os.O_WRONLY\n"
+              "    if hasattr(os, \"O_NOFOLLOW\"):\n"
+              "        flags |= os.O_NOFOLLOW\n"
+              "    elif absolute_path.is_symlink():\n"
+              "        raise ValueError(\n"
+              "            f\"Refusing to write Markdown report through symlink: {absolute_path}\"\n"
+              "        )\n"
+              "    descriptor = os.open(absolute_path, flags, 0o666)\n"
+          )
           if old_block not in source:
               raise SystemExit("localize_status output block changed")
           source_path.write_text(source.replace(old_block, new_block, 1), encoding="utf-8")
@@ -78,26 +78,25 @@ jobs:
           marker = "\n\ndef test_report_localize_status_cli_writes_outputs(\n"
           if marker not in tests:
               raise SystemExit("localize status test insertion point changed")
-          parent_test = '''
-
-          def test_localize_po_status_refuses_symlinked_markdown_parent(workspace: Path) -> None:
-              """Verify Markdown output cannot escape through a symlinked parent directory."""
-
-              po_path = workspace / "latest.po"
-              outside_path = workspace / "outside"
-              reports_path = workspace / "reports"
-              write_status_fixture_po(po_path)
-              outside_path.mkdir()
-              reports_path.symlink_to(outside_path, target_is_directory=True)
-
-              with pytest.raises(ValueError, match="symlinked artifact path"):
-                  write_localize_po_status_markdown(
-                      build_localize_po_status_report(po_path), reports_path / "details.md"
-                  )
-
-              assert not (outside_path / "details.md").exists()
-          '''
-          parent_test = "\n".join(line[10:] if line.startswith("          ") else line for line in parent_test.splitlines())
+          parent_test = (
+              "\n\n"
+              "def test_localize_po_status_refuses_symlinked_markdown_parent(workspace: Path) -> None:\n"
+              "    \"\"\"Verify Markdown output cannot escape through a symlinked parent directory.\"\"\"\n"
+              "\n"
+              "    po_path = workspace / \"latest.po\"\n"
+              "    outside_path = workspace / \"outside\"\n"
+              "    reports_path = workspace / \"reports\"\n"
+              "    write_status_fixture_po(po_path)\n"
+              "    outside_path.mkdir()\n"
+              "    reports_path.symlink_to(outside_path, target_is_directory=True)\n"
+              "\n"
+              "    with pytest.raises(ValueError, match=\"symlinked artifact path\"):\n"
+              "        write_localize_po_status_markdown(\n"
+              "            build_localize_po_status_report(po_path), reports_path / \"details.md\"\n"
+              "        )\n"
+              "\n"
+              "    assert not (outside_path / \"details.md\").exists()\n"
+          )
           test_path.write_text(tests.replace(marker, parent_test + marker, 1), encoding="utf-8")
           PY
           .venv/bin/python -m ruff format --config config/ruff.toml src tests
