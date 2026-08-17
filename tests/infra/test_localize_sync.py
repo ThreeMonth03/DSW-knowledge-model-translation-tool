@@ -6,8 +6,17 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from dsw_km_translation_tool.cli import sync_from_localize
-from dsw_km_translation_tool.localize_sync import LocalizePullResult, pull_localize_po
+from dsw_km_translation_tool.localize_sync import (
+    LocalizePullResult,
+    _download_url,
+    pull_localize_po,
+)
+from dsw_km_translation_tool.translation_repository_config import (
+    TranslationRepositoryConfigError,
+)
 from tests.infra.test_translation_repository_config import write_config
 
 
@@ -25,6 +34,13 @@ def test_pull_localize_po_initializes_latest(workspace: Path) -> None:
     assert result.changed is True
     assert result.initialized is True
     assert result.latest_po_path.read_bytes() == b"new po"
+
+
+def test_downloader_rejects_local_file_urls() -> None:
+    """Verify the standard downloader cannot read runner-local files."""
+
+    with pytest.raises(TranslationRepositoryConfigError, match="must be an HTTPS URL"):
+        _download_url("file:///tmp/runner-secret")
 
 
 def test_pull_localize_po_uses_configured_rolling_download_url(

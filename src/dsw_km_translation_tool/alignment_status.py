@@ -178,7 +178,6 @@ def build_alignment_status_report(
         if artifact_dir is not None:
             _write_alignment_artifacts(
                 artifact_dir=artifact_dir,
-                downloaded_localize_po=downloaded_localize_po,
                 rebuilt_po=rebuilt_po,
                 rebuilt_km=rebuilt_km,
             )
@@ -303,13 +302,11 @@ def _build_artifact(label: str, path: Path) -> AlignmentArtifact:
 def _write_alignment_artifacts(
     *,
     artifact_dir: Path,
-    downloaded_localize_po: Path,
     rebuilt_po: Path,
     rebuilt_km: Path,
 ) -> None:
     """Copy generated comparison files into a persistent artifact directory."""
 
     artifact_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(downloaded_localize_po, artifact_dir / downloaded_localize_po.name)
     shutil.copyfile(rebuilt_po, artifact_dir / rebuilt_po.name)
     shutil.copyfile(rebuilt_km, artifact_dir / rebuilt_km.name)

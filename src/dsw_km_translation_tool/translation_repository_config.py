@@ -12,6 +12,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import yaml
 
@@ -313,9 +314,20 @@ def _validate_git_ref(value: str, field: str) -> str:
 
 def _load_localize_config(payload: dict[str, Any]) -> LocalizeConfig:
     return LocalizeConfig(
-        download_url=_require_str(payload, "download_url"),
+        download_url=_validate_https_url(
+            _require_str(payload, "download_url"), "localize.download_url"
+        ),
         repository=_optional_str(payload, "repository"),
     )
+
+
+def _validate_https_url(value: str, field: str) -> str:
+    """Reject download URLs that could access runner-local resources."""
+
+    parsed = urlsplit(value)
+    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+        raise TranslationRepositoryConfigError(f"{field} must be an HTTPS URL without credentials")
+    return value
 
 
 def _load_workflow_config(payload: dict[str, Any]) -> WorkflowConfig:
