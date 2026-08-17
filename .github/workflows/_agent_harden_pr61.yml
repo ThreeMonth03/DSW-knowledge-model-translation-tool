@@ -1,0 +1,92 @@
+name: Harden PR 61
+
+on:
+  push:
+    branches:
+      - codex/fix-po-diff-review-non-msgstr-detection
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v5
+        with:
+          ref: codex/fix-po-diff-review-non-msgstr-detection
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: make install-dev BOOTSTRAP_PYTHON=python
+
+      - name: Preserve plural indexes, add regression, and remove helper
+        run: |
+          set -euo pipefail
+          .venv/bin/python - <<'PY'
+          from pathlib import Path
+
+          source_path = Path("src/dsw_km_translation_tool/review.py")
+          source = source_path.read_text(encoding="utf-8")
+          old = '''            if re.match(r"^msgstr(?:\\[\\d+\\])?\\s", lines[index]):
+                          normalized.append("msgstr\\n")
+                          index += 1
+          '''
+          old = "\n".join(line[12:] if line.startswith("            ") else line for line in old.splitlines()) + "\n"
+          new = '''            match = re.match(r"^(msgstr(?:\\[\\d+\\])?)\\s", lines[index])
+                          if match:
+                              normalized.append(f"{match.group(1)}\\n")
+                              index += 1
+          '''
+          new = "\n".join(line[12:] if line.startswith("            ") else line for line in new.splitlines()) + "\n"
+          if old not in source:
+              raise SystemExit("PR 61 msgstr normalization block changed")
+          source_path.write_text(source.replace(old, new, 1), encoding="utf-8")
+
+          test_path = Path("tests/infra/test_cli_review.py")
+          tests = test_path.read_text(encoding="utf-8")
+          marker = "\n\ndef test_review_po_cli_reports_msgstr_only_changes_for_generated_output(\n"
+          if marker not in tests:
+              raise SystemExit("PR 61 test insertion point changed")
+          regression = '''
+
+          def test_review_rejects_plural_msgstr_index_changes(tmp_path) -> None:
+              """Plural translation indexes are structural, not translation values."""
+
+              original_path = tmp_path / "original.po"
+              generated_path = tmp_path / "generated.po"
+              original_path.write_text(
+                  'msgid "item"\\nmsgid_plural "items"\\n'
+                  'msgstr[0] "one"\\nmsgstr[1] "many"\\n',
+                  encoding="utf-8",
+              )
+              generated_path.write_text(
+                  'msgid "item"\\nmsgid_plural "items"\\n'
+                  'msgstr[0] "one"\\nmsgstr[2] "many"\\n',
+                  encoding="utf-8",
+              )
+
+              review = PoDiffReviewer().review(str(original_path), str(generated_path))
+
+              assert review.msgstr_only is False
+          '''
+          regression = "\n".join(
+              line[10:] if line.startswith("          ") else line
+              for line in regression.splitlines()
+          )
+          test_path.write_text(tests.replace(marker, regression + marker, 1), encoding="utf-8")
+          PY
+          .venv/bin/python -m ruff check --fix --config config/ruff.toml \
+            src/dsw_km_translation_tool/review.py tests/infra/test_cli_review.py
+          .venv/bin/python -m ruff format --config config/ruff.toml src tests
+          rm -f .github/workflows/_agent_harden_pr61.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "security: preserve plural msgstr indexes in review"
+          git push origin HEAD:codex/fix-po-diff-review-non-msgstr-detection
