@@ -183,9 +183,7 @@ def test_weblate_checks_report_rejects_untrusted_token_origin(workspace: Path) -
     """Verify repository config cannot redirect the API token to another host."""
 
     config_path = workspace / "translation-config.yml"
-    write_config(
-        config_path, "https://attacker.invalid/download/project/component/lang/"
-    )
+    write_config(config_path, "https://attacker.invalid/download/project/component/lang/")
 
     try:
         build_weblate_checks_report(
@@ -224,9 +222,7 @@ def test_weblate_checks_report_rejects_cross_origin_authenticated_pagination(
                 {"count": 0, "next": "https://attacker.invalid/page-2", "results": []}
             ).encode()
 
-    monkeypatch.setattr(
-        urllib.request, "urlopen", lambda *_args, **_kwargs: FakeResponse()
-    )
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *_args, **_kwargs: FakeResponse())
 
     try:
         build_weblate_checks_report(
@@ -252,9 +248,7 @@ def test_weblate_checks_report_rejects_cross_origin_anonymous_pagination(
     )
 
     def downloader(_url: str) -> bytes:
-        return json.dumps(
-            {"count": 0, "next": "http://127.0.0.1/metadata", "results": []}
-        ).encode()
+        return json.dumps({"count": 0, "next": "http://127.0.0.1/metadata", "results": []}).encode()
 
     try:
         build_weblate_checks_report(
@@ -312,9 +306,7 @@ def test_weblate_checks_report_limits_page_count(
     def downloader(_url: str) -> bytes:
         nonlocal request_count
         request_count += 1
-        return json.dumps(
-            {"count": 0, "next": f"/page-{request_count}", "results": []}
-        ).encode()
+        return json.dumps({"count": 0, "next": f"/page-{request_count}", "results": []}).encode()
 
     monkeypatch.setattr(weblate_checks, "_MAX_WEBLATE_PAGES", 2)
     try:
