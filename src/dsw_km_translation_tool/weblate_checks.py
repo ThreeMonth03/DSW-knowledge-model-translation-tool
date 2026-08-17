@@ -16,7 +16,6 @@ from .translation_repository_config import (
     require_localize_config,
 )
 
-
 _MAX_WEBLATE_PAGES = 1000
 
 
