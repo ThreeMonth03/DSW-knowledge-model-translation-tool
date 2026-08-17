@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .translation_repository_config import (
+    _validate_https_url,
     load_translation_repository_config,
     require_localize_config,
     version_paths,
@@ -82,5 +83,6 @@ def pull_localize_po(
 def _download_url(url: str) -> bytes:
     """Download one URL using the Python standard library."""
 
+    _validate_https_url(url, "localize.download_url")
     with urllib.request.urlopen(url, timeout=60) as response:
         return response.read()

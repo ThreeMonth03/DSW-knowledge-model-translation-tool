@@ -212,6 +212,30 @@ def test_config_rejects_untrusted_tooling_repository(workspace: Path) -> None:
 
 
 @pytest.mark.parametrize(
+    "download_url",
+    [
+        "file:///tmp/runner-secret",
+        "http://localize.ds-wizard.org/latest.po",
+        "https://user:password@localize.ds-wizard.org/latest.po",
+    ],
+)
+def test_config_rejects_unsafe_localize_download_url(workspace: Path, download_url: str) -> None:
+    config_path = workspace / "translation-config.yml"
+    write_config(config_path)
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8").replace(
+            "https://localize.ds-wizard.org/download/knowledge-models/"
+            "common-dsw-knowledge-model/zh_Hant/",
+            download_url,
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(TranslationRepositoryConfigError, match="must be an HTTPS URL"):
+        load_translation_repository_config(config_path)
+
+
+@pytest.mark.parametrize(
     ("field", "value"),
     [
         ("tooling.ref", "main\ninjected: value"),

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
@@ -12,7 +13,8 @@ from dsw_km_translation_tool.alignment_status import (
     render_alignment_status_markdown,
     write_alignment_status_json,
 )
-from tests.helpers import run_cli_command
+from dsw_km_translation_tool import alignment_status
+from dsw_km_translation_tool.cli import report_alignment_status
 
 
 def prepare_translation_repo_fixture(
@@ -118,7 +120,7 @@ def test_alignment_status_report_accepts_aligned_repository(
 
     assert report.aligned is True
     assert [check.matched for check in report.checks] == [True, True, True]
-    assert (artifact_dir / "weblate-latest.po").exists()
+    assert not (artifact_dir / "weblate-latest.po").exists()
     assert (artifact_dir / "tree-rebuilt.po").exists()
     assert (artifact_dir / "final-po-rebuilt.km").exists()
     markdown = render_alignment_status_markdown(report)
@@ -186,53 +188,59 @@ def test_alignment_status_writes_json(
 
 
 def test_report_alignment_status_cli_writes_outputs(
-    repo_root: Path,
     workspace: Path,
     po_path: Path,
     model_path: Path,
     workflow,
+    monkeypatch,
+    capsys,
 ) -> None:
     """Verify the alignment CLI writes JSON, summary, and artifact outputs."""
 
-    remote_po = workspace / "remote.po"
-    remote_po.write_bytes(po_path.read_bytes())
     translation_repo = prepare_translation_repo_fixture(
         workspace=workspace,
         po_path=po_path,
         model_path=model_path,
         workflow=workflow,
-        download_url=remote_po.as_uri(),
     )
     json_path = workspace / "alignment.json"
     summary_path = workspace / "summary.md"
     details_path = workspace / "details.md"
     artifact_dir = workspace / "alignment-artifacts"
 
-    result = run_cli_command(
-        repo_root,
-        "dsw-km-report-alignment",
-        "--repo-root",
-        str(translation_repo),
-        "--config",
-        str(translation_repo / "translation-config.yml"),
-        "--json-out",
-        str(json_path),
-        "--summary",
-        str(summary_path),
-        "--details-out",
-        str(details_path),
-        "--artifact-dir",
-        str(artifact_dir),
-        "--fail-on-mismatch",
+    latest_po = translation_repo / "sources/localize/zh_Hant/latest.po"
+    monkeypatch.setattr(
+        alignment_status, "_download_url", _static_downloader(latest_po.read_bytes())
     )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "dsw-km-report-alignment",
+            "--repo-root",
+            str(translation_repo),
+            "--config",
+            str(translation_repo / "translation-config.yml"),
+            "--json-out",
+            str(json_path),
+            "--summary",
+            str(summary_path),
+            "--details-out",
+            str(details_path),
+            "--artifact-dir",
+            str(artifact_dir),
+            "--fail-on-mismatch",
+        ],
+    )
+    report_alignment_status.main()
+    stdout = capsys.readouterr().out
 
-    assert result.returncode == 0, result.stderr or result.stdout
-    assert "## Localize/Repository Alignment" in result.stdout
-    assert "Status: **aligned**" in result.stdout
+    assert "## Localize/Repository Alignment" in stdout
+    assert "Status: **aligned**" in stdout
     assert json.loads(json_path.read_text(encoding="utf-8"))["aligned"] is True
     assert "## Localize/Repository Alignment" in summary_path.read_text(encoding="utf-8")
     assert details_path.exists()
-    assert (artifact_dir / "weblate-latest.po").exists()
+    assert not (artifact_dir / "weblate-latest.po").exists()
 
 
 def _static_downloader(payload: bytes) -> Callable[[str], bytes]:
