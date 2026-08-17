@@ -227,7 +227,11 @@ class TranslationFieldStateStore:
         state_path = self.path_service.field_state_path(tree_dir)
         if not state_path.exists():
             return {}
-        data = json.loads(state_path.read_text(encoding="utf-8"))
+        try:
+            data = json.loads(state_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            # This file is a recoverable cache and must not prevent tree scans.
+            return {}
         if not isinstance(data, dict):
             return {}
         normalized_state: dict[str, dict[str, dict[str, Any]]] = {}
