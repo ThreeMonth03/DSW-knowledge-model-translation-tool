@@ -412,7 +412,7 @@ def _validate_question_additions(
             )
 
         if parent_uuid:
-            _validate_active_entity(
+            _validate_question_parent(
                 entity_uuid=parent_uuid,
                 latest_by_uuid=latest_by_uuid,
                 context=f"{context}.parent_uuid",
@@ -677,6 +677,35 @@ def _validate_active_entity(
             return False
         current_uuid = parent_uuid
     return True
+
+
+def _validate_question_parent(
+    *,
+    entity_uuid: str,
+    latest_by_uuid: dict[str, dict[str, Any]],
+    context: str,
+    errors: list[str],
+) -> None:
+    """Require an active KM entity that can structurally contain a question."""
+
+    entity = latest_by_uuid.get(entity_uuid)
+    if entity is None:
+        errors.append(f"{context} is not a valid question parent: {entity_uuid}")
+        return
+    event_type = str(entity.get("content", {}).get("eventType") or "")
+    valid_parent = event_type.endswith(("ChapterEvent", "QuestionEvent", "AnswerEvent"))
+    if not valid_parent:
+        errors.append(
+            f"{context} is not a valid question parent: "
+            f"{entity_uuid} ({event_type or 'unknown event type'})"
+        )
+        return
+    _validate_active_entity(
+        entity_uuid=entity_uuid,
+        latest_by_uuid=latest_by_uuid,
+        context=context,
+        errors=errors,
+    )
 
 
 def _question_title(content: dict[str, Any]) -> str:
