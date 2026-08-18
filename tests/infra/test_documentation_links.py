@@ -59,10 +59,7 @@ SECURITY_LINKS = {
 def test_security_links_use_repository_aware_schemes(repo_root: Path) -> None:
     """Sensitive links must resolve from the repository being documented."""
 
-    mutable_prefix = (
-        "https://github.com/ThreeMonth03/dsw-km-translation-tool/"
-        "blob/master/"
-    )
+    mutable_prefix = "https://github.com/ThreeMonth03/dsw-km-translation-tool/blob/master/"
     for relative_path, links in SECURITY_LINKS.items():
         text = (repo_root / relative_path).read_text(encoding="utf-8")
         assert mutable_prefix not in text
