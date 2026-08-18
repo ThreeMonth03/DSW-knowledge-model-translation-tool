@@ -32,3 +32,11 @@ def test_adapter_keeps_other_unknown_package_fields_strict(model_path: Path) -> 
 
     with pytest.raises(ValidationError, match="unexpectedField"):
         DswModelsBundleAdapter.validate_bundle_root(root)
+
+
+@pytest.mark.parametrize("root", [[], "not an object"])
+def test_adapter_delegates_non_object_roots_to_schema_validation(root: object) -> None:
+    """Reject non-object JSON roots with the official schema validation error."""
+
+    with pytest.raises(ValidationError):
+        DswModelsBundleAdapter.validate_bundle_root(root)
