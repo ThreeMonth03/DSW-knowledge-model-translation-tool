@@ -57,10 +57,13 @@ SECURITY_LINKS = {
 def test_security_links_use_repository_aware_schemes(repo_root: Path) -> None:
     """Sensitive links must resolve from the repository being documented."""
 
-    mutable_prefix = "https://github.com/ThreeMonth03/dsw-km-translation-tool/blob/master/"
+    mutable_prefixes = (
+        "https://github.com/ThreeMonth03/dsw-km-translation-tool/blob/master/",
+        "https://github.com/ThreeMonth03/dsw-km-translation-tool/tree/master/",
+    )
     for relative_path, links in SECURITY_LINKS.items():
         text = (repo_root / relative_path).read_text(encoding="utf-8")
-        assert mutable_prefix not in text
+        assert not any(prefix in text for prefix in mutable_prefixes)
         for label, destination in links.items():
             assert f"[{label}]: {destination}" in text
 
@@ -77,7 +80,7 @@ def test_sphinx_repository_schemes_follow_build_environment(
     monkeypatch.setenv("GITHUB_SHA", commit)
 
     config_path = repo_root / "docs/sphinx/conf.py"
-    config: dict[str, object] = {}
+    config: dict[str, object] = {"__file__": str(config_path)}
     exec(
         compile(config_path.read_text(encoding="utf-8"), str(config_path), "exec"),
         config,
