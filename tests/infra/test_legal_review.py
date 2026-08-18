@@ -249,6 +249,34 @@ def test_legal_mapping_rejects_addition_below_deleted_parent(
         )
 
 
+@pytest.mark.parametrize(
+    "parent_uuid",
+    [
+        "00000000-0000-0000-0000-000000000000",
+        "b101f2d0-2476-452d-aa8d-95a41a02b52c",
+        GDPR_CHOICE_UUID,
+    ],
+)
+def test_legal_mapping_rejects_invalid_question_addition_parent(
+    workspace: Path,
+    model_path: Path,
+    parent_uuid: str,
+) -> None:
+    payload = _valid_mapping_payload(model_path)
+    payload["question_additions"][0]["parent_uuid"] = parent_uuid
+    mapping_path = workspace / "legal-mapping.yml"
+    mapping_path.write_text(
+        yaml.safe_dump(payload, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(LegalReviewError, match="not a valid question parent"):
+        validate_legal_mapping(
+            mapping_path=mapping_path,
+            km_path=model_path,
+        )
+
+
 def test_legal_draft_appends_valid_deterministic_child_package(
     workspace: Path,
     model_path: Path,
