@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 SECURITY_LINKS = {
     "docs/architecture.md": {
         "github-import-template": (
