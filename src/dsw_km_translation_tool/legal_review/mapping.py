@@ -692,8 +692,12 @@ def _validate_question_parent(
     if entity is None:
         errors.append(f"{context} is not a valid question parent: {entity_uuid}")
         return
-    event_type = str(entity.get("content", {}).get("eventType") or "")
-    valid_parent = event_type.endswith(("ChapterEvent", "QuestionEvent", "AnswerEvent"))
+    content = entity.get("content", {})
+    event_type = str(content.get("eventType") or "")
+    question_type = str(content.get("questionType") or "")
+    valid_parent = event_type.endswith(("ChapterEvent", "AnswerEvent")) or (
+        event_type.endswith("QuestionEvent") and question_type == "ListQuestion"
+    )
     if not valid_parent:
         errors.append(
             f"{context} is not a valid question parent: "

@@ -254,6 +254,7 @@ def test_legal_mapping_rejects_addition_below_deleted_parent(
     [
         "00000000-0000-0000-0000-000000000000",
         "b101f2d0-2476-452d-aa8d-95a41a02b52c",
+        PERSONAL_DATA_QUESTION_UUID,
         GDPR_CHOICE_UUID,
     ],
 )

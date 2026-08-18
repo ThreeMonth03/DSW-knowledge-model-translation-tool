@@ -76,9 +76,7 @@ def download_verified_km_release(
 
     asset_name = f"{organization_id}-{km_id}-{normalized_version}.km"
     checksum_asset_name = f"{asset_name}.sha256"
-    published_names = {
-        asset.get("name") for asset in assets if isinstance(asset, dict)
-    }
+    published_names = {asset.get("name") for asset in assets if isinstance(asset, dict)}
     if asset_name not in published_names and checksum_asset_name not in published_names:
         # Releases created before the source-repository scaffold adopted its
         # organization-qualified asset stem remain valid dependencies.
