@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-import runpy
 
 
 SECURITY_LINKS = {
@@ -78,8 +77,14 @@ def test_sphinx_repository_schemes_follow_build_environment(
     monkeypatch.setenv("GITHUB_REPOSITORY", repository)
     monkeypatch.setenv("GITHUB_SHA", commit)
 
-    config = runpy.run_path(str(repo_root / "docs/sphinx/conf.py"))
+    config_path = repo_root / "docs/sphinx/conf.py"
+    config: dict[str, object] = {}
+    exec(
+        compile(config_path.read_text(encoding="utf-8"), str(config_path), "exec"),
+        config,
+    )
     schemes = config["myst_url_schemes"]
+    assert isinstance(schemes, dict)
 
     assert schemes["repo-file"]["url"] == (
         f"https://github.com/{repository}/blob/{commit}/{{{{path}}}}"
