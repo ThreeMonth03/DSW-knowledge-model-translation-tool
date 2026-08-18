@@ -1,0 +1,122 @@
+name: Integrate reviewed KM PRs
+
+on:
+  push:
+    branches:
+      - integration/new-prs-20260818-km
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out integration branch
+        uses: actions/checkout@v5
+        with:
+          ref: integration/new-prs-20260818-km
+          fetch-depth: 0
+
+      - name: Merge reviewed PR branches
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          while read -r number branch; do
+            echo "::group::Merge PR #${number} (${branch})"
+            git fetch --no-tags origin \
+              "refs/heads/${branch}:refs/remotes/incoming/pr-${number}"
+            git merge --no-ff --no-edit \
+              "refs/remotes/incoming/pr-${number}" \
+              -m "Merge reviewed PR #${number} into integration branch"
+            echo "::endgroup::"
+          done <<'PRS'
+          64 codex/propose-fix-for-km-json-crash
+          65 codex/fix-release-assets-naming-mismatch
+          66 codex/propose-fix-for-question-additions-validation
+          67 codex/fix-unsupported-concurrency-queue-in-workflows
+          PRS
+
+      - name: Refine structural parent validation
+        run: |
+          set -euo pipefail
+          .venv/bin/python - <<'PY'
+          from pathlib import Path
+
+          source_path = Path("src/dsw_km_translation_tool/legal_review/mapping.py")
+          source = source_path.read_text(encoding="utf-8")
+          old = '''    event_type = str(entity.get("content", {}).get("eventType") or "")
+              valid_parent = event_type.endswith(("ChapterEvent", "QuestionEvent", "AnswerEvent"))
+          '''
+          old = "\n".join(
+              line[4:] if line.startswith("    ") else line
+              for line in old.splitlines()
+          ) + "\n"
+          new = '''    content = entity.get("content", {})
+              event_type = str(content.get("eventType") or "")
+              question_type = str(content.get("questionType") or "")
+              valid_parent = event_type.endswith(("ChapterEvent", "AnswerEvent")) or (
+                  event_type.endswith("QuestionEvent") and question_type == "ListQuestion"
+              )
+          '''
+          new = "\n".join(
+              line[4:] if line.startswith("    ") else line
+              for line in new.splitlines()
+          ) + "\n"
+          if old not in source:
+              raise SystemExit("Question-parent validation block changed unexpectedly")
+          source_path.write_text(source.replace(old, new, 1), encoding="utf-8")
+
+          test_path = Path("tests/infra/test_legal_review.py")
+          tests = test_path.read_text(encoding="utf-8")
+          old_cases = '''        "00000000-0000-0000-0000-000000000000",
+                  "b101f2d0-2476-452d-aa8d-95a41a02b52c",
+                  GDPR_CHOICE_UUID,
+          '''
+          old_cases = "\n".join(
+              line[8:] if line.startswith("        ") else line
+              for line in old_cases.splitlines()
+          ) + "\n"
+          new_cases = '''        "00000000-0000-0000-0000-000000000000",
+                  "b101f2d0-2476-452d-aa8d-95a41a02b52c",
+                  PERSONAL_DATA_QUESTION_UUID,
+                  GDPR_CHOICE_UUID,
+          '''
+          new_cases = "\n".join(
+              line[8:] if line.startswith("        ") else line
+              for line in new_cases.splitlines()
+          ) + "\n"
+          if old_cases not in tests:
+              raise SystemExit("Question-parent regression cases changed unexpectedly")
+          test_path.write_text(tests.replace(old_cases, new_cases, 1), encoding="utf-8")
+          PY
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install development dependencies
+        run: make install-dev BOOTSTRAP_PYTHON=python
+
+      - name: Normalize and verify integrated fixes
+        run: |
+          set -euo pipefail
+          .venv/bin/python -m ruff check --fix --config config/ruff.toml src tests
+          .venv/bin/python -m ruff format --config config/ruff.toml src tests
+          .venv/bin/python -m pytest -q \
+            tests/infra/test_dsw_models_package_language.py \
+            tests/infra/test_github_release.py \
+            tests/infra/test_legal_review.py \
+            tests/infra/test_github_workflows.py
+          make docs
+
+      - name: Commit integration and remove helper
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/_integrate_new_prs_20260818.yml
+          git add -A
+          git commit -m "fix: integrate reviewed KM correctness fixes"
+          git push origin HEAD:integration/new-prs-20260818-km
