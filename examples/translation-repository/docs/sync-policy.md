@@ -64,8 +64,8 @@ fails unless every expected entry is present.
   bundle download, Weblate mirror, rebuild, validation, and alignment checks
   pass.
 
-These writer workflows share a retained concurrency queue so pending imports,
-syncs, and KM updates are not replaced by later runs.
+These writer workflows share a concurrency group and do not cancel an active
+import, sync, or KM update when a later run starts.
 
 ## Read-Only Reports
 

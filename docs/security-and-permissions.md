@@ -25,8 +25,9 @@ workflow.
 | [KM version auto update][km-auto-update-template] | `contents: write` | `DSW_REGISTRY_TOKEN` only when a newer KM exists | Writes Git only after validation |
 
 The workflows that write the tracking branch or Weblate share the
-`translation-state-master` concurrency group with `queue: max`. Keep both
-settings aligned so later runs do not replace pending writer jobs.
+`translation-state-master` concurrency group with `cancel-in-progress: false`.
+Keep both settings aligned so an active writer job is not cancelled by a later
+run.
 
 ## Secret Placement
 

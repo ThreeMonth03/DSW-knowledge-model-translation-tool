@@ -71,9 +71,9 @@ workflow also checks that a same-repository pull-request branch still exists
 before attempting either writer. This keeps delayed PR runs from failing after
 the PR was already merged and its branch deleted.
 
-All templates that write the tracking branch or Weblate share a retained
-`translation-state-*` concurrency queue. Keep both the group and `queue: max`
-aligned when adding another writer workflow.
+All templates that write the tracking branch or Weblate share a
+`translation-state-*` concurrency group with `cancel-in-progress: false`.
+Keep both settings aligned when adding another writer workflow.
 
 ## Update Checklist
 

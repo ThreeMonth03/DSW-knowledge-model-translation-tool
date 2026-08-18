@@ -71,7 +71,7 @@ def test_localize_auto_sync_template_matches_writer_policy(
     assert "pull_request" not in workflow["on"]
     assert "workflow_dispatch" not in workflow["on"]
     assert workflow["permissions"]["contents"] == "write"
-    assert workflow["concurrency"]["queue"] == "max"
+    assert set(workflow["concurrency"]) == {"group", "cancel-in-progress"}
     assert_tooling_checkout_env(workflow)
     assert workflow["env"]["TRACKING_BRANCH"] == "master"
     assert workflow["env"]["TRANSLATION_CONFIG"] == "translation-config.yml"
@@ -108,7 +108,7 @@ def test_github_translation_import_template_is_guarded_writer(repo_root: Path) -
     assert workflow["on"]["workflow_dispatch"]["inputs"]["head_ref"]["default"] == "HEAD"
     assert workflow["permissions"]["contents"] == "write"
     assert workflow["concurrency"]["group"] == "translation-state-master"
-    assert workflow["concurrency"]["queue"] == "max"
+    assert set(workflow["concurrency"]) == {"group", "cancel-in-progress"}
     assert "github.actor != 'github-actions[bot]'" in workflow_text
     assert_tooling_checkout_env(workflow)
     assert workflow["env"]["TRACKING_BRANCH"] == "master"
@@ -194,7 +194,7 @@ def test_km_version_auto_update_template_is_guarded_writer(repo_root: Path) -> N
     assert "workflow_dispatch" in workflow["on"]
     assert workflow["permissions"]["contents"] == "write"
     assert workflow["concurrency"]["group"] == "translation-state-master"
-    assert workflow["concurrency"]["queue"] == "max"
+    assert set(workflow["concurrency"]) == {"group", "cancel-in-progress"}
     assert "github.actor != 'github-actions[bot]'" in workflow_text
     assert_tooling_checkout_env(workflow)
     assert workflow["env"]["TRACKING_BRANCH"] == "master"

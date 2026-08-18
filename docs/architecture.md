@@ -149,9 +149,9 @@ translation import decisions, KM generation, and commit decisions belong in
 Python helpers. Use
 [Workflow Templates](workflow-templates.md) when rendering or updating templates
 in translation repositories. Workflows that write the tracking branch or
-Weblate share one concurrency group with a retained queue. Post-merge imports
-still revalidate Weblate before upload because external website edits are not
-controlled by the GitHub queue.
+Weblate share one concurrency group and do not cancel an active writer.
+Post-merge imports still revalidate Weblate before upload because external
+website edits are not controlled by the GitHub concurrency group.
 
 ## Ownership Rules
 
