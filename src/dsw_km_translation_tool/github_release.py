@@ -63,8 +63,6 @@ def download_verified_km_release(
             f"GitHub repository must use owner/name syntax; got {repository!r}"
         )
 
-    asset_name = f"{km_id}-{normalized_version}.km"
-    checksum_asset_name = f"{asset_name}.sha256"
     metadata = _download_release_metadata(
         repository=repository,
         ref=ref,
@@ -75,6 +73,17 @@ def download_verified_km_release(
     assets = metadata.get("assets")
     if not isinstance(assets, list):
         raise GitHubReleaseError(f"GitHub Release {repository}@{ref} has no asset list")
+
+    asset_name = f"{organization_id}-{km_id}-{normalized_version}.km"
+    checksum_asset_name = f"{asset_name}.sha256"
+    published_names = {
+        asset.get("name") for asset in assets if isinstance(asset, dict)
+    }
+    if asset_name not in published_names and checksum_asset_name not in published_names:
+        # Releases created before the source-repository scaffold adopted its
+        # organization-qualified asset stem remain valid dependencies.
+        asset_name = f"{km_id}-{normalized_version}.km"
+        checksum_asset_name = f"{asset_name}.sha256"
 
     download = asset_downloader or _download
     payload = download(
