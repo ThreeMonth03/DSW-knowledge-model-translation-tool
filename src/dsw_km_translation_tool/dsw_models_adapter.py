@@ -51,7 +51,7 @@ class DswModelsBundleAdapter:
     """Load KM bundles via the official `dsw-models` schema package."""
 
     @classmethod
-    def validate_bundle_root(cls, root: dict[str, Any]) -> None:
+    def validate_bundle_root(cls, root: Any) -> None:
         """Validate an in-memory KM bundle with the official schema.
 
         Args:
@@ -187,7 +187,7 @@ class DswModelsBundleAdapter:
         return lineage
 
     @classmethod
-    def _normalize_bundle_root(cls, root: dict[str, Any]) -> dict[str, Any]:
+    def _normalize_bundle_root(cls, root: Any) -> Any:
         """Normalize known Registry/schema differences before validation.
 
         Current Registry bundles may include a package-level ``language`` field
@@ -203,6 +203,9 @@ class DswModelsBundleAdapter:
         """
 
         normalized = cls._normalize_edit_event_fields(root)
+        if not isinstance(normalized, dict):
+            return normalized
+
         packages = normalized.get("packages")
         if isinstance(packages, list):
             for package in packages:
