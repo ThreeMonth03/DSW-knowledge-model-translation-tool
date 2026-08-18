@@ -16,10 +16,11 @@ def release_downloaders(
     *,
     payload: bytes,
     checksum: str | None = None,
+    asset_stem: str = "root",
 ) -> tuple[object, object]:
     """Return deterministic metadata and asset downloaders."""
 
-    asset_name = "root-2.7.0.km"
+    asset_name = f"{asset_stem}-2.7.0.km"
     checksum_name = f"{asset_name}.sha256"
     metadata = {
         "tag_name": "v2.7.0",
@@ -71,6 +72,29 @@ def test_download_verified_km_release_checks_tag_checksum_and_identity(
     assert result.asset_name == "root-2.7.0.km"
     assert result.sha256 == hashlib.sha256(payload).hexdigest()
     assert result.payload == payload
+
+
+def test_download_verified_km_release_accepts_scaffolded_asset_name(
+    model_path: Path,
+) -> None:
+    payload = model_path.read_bytes()
+    metadata_downloader, asset_downloader = release_downloaders(
+        payload=payload,
+        asset_stem="dsw-root",
+    )
+
+    result = download_verified_km_release(
+        repository="ds-wizard/dsw-root",
+        ref="v2.7.0",
+        organization_id="dsw",
+        km_id="root",
+        version="2.7.0",
+        metadata_downloader=metadata_downloader,
+        asset_downloader=asset_downloader,
+    )
+
+    assert result.asset_name == "dsw-root-2.7.0.km"
+    assert result.checksum_asset_name == "dsw-root-2.7.0.km.sha256"
 
 
 def test_download_verified_km_release_rejects_wrong_checksum(

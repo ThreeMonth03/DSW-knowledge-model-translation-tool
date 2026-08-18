@@ -156,8 +156,9 @@ Normal sync is Weblate-first:
 GitHub translation import is not last-write-wins. It imports only entries that
 are safe against the current Weblate state. Conflicts require human review.
 
-Writer workflows use the same retained concurrency queue. This prevents a later
-push or scheduled run from replacing an import that is already waiting.
+Writer workflows use the same concurrency group with
+`cancel-in-progress: false`. This prevents a later push or scheduled run from
+cancelling an active writer job.
 
 ## KM Updates
 

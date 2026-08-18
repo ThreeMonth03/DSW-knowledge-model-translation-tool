@@ -15,8 +15,9 @@ permissions for this repository.
 | `validate_translation_config.yml` | `contents: read` | none | nothing |
 
 The workflows that write `master` or Weblate share the
-`translation-state-master` concurrency group with `queue: max`. Keep both
-settings aligned so later runs do not replace pending writer jobs.
+`translation-state-master` concurrency group with `cancel-in-progress: false`.
+Keep both settings aligned so an active writer job is not cancelled by a later
+run.
 
 On pull requests, `localize_auto_sync.yml` writes only when the head branch
 belongs to this repository and still exists. Its shared-translation step
