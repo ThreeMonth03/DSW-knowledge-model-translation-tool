@@ -123,6 +123,14 @@ def _url_origin(url: str) -> tuple[str, str, int]:
     return parsed.scheme.lower(), (parsed.hostname or "").lower(), port or 443
 
 
+def is_retryable_localize_download_error(error: BaseException) -> bool:
+    """Return whether a Localize failure is safe to retry or use a mirror for."""
+
+    if isinstance(error, urllib.error.HTTPError):
+        return error.code in _RETRYABLE_HTTP_STATUS_CODES
+    return isinstance(error, (urllib.error.URLError, TimeoutError))
+
+
 def _download_url(
     url: str,
     *,
@@ -142,7 +150,7 @@ def _download_url(
             with trusted_opener.open(url, timeout=60) as response:
                 return response.read()
         except urllib.error.HTTPError as error:
-            if error.code not in _RETRYABLE_HTTP_STATUS_CODES or attempt == max_attempts:
+            if not is_retryable_localize_download_error(error) or attempt == max_attempts:
                 raise
             delay = _retry_delay_seconds(
                 attempt=attempt,
