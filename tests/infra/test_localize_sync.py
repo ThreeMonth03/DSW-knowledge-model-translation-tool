@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import io
 import sys
+import urllib.error
 import urllib.request
+from email.message import Message
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -20,6 +23,51 @@ from dsw_km_translation_tool.translation_repository_config import (
     TranslationRepositoryConfigError,
 )
 from tests.infra.test_translation_repository_config import write_config
+
+
+class _FakeResponse:
+    """Small context-managed response used by downloader retry tests."""
+
+    def __init__(self, payload: bytes) -> None:
+        self._payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, _exc_type, _exc, _traceback) -> bool:
+        return False
+
+    def read(self) -> bytes:
+        return self._payload
+
+
+class _SequenceOpener:
+    """Return or raise deterministic outcomes for successive open calls."""
+
+    def __init__(self, outcomes: list[object]) -> None:
+        self._outcomes = list(outcomes)
+        self.calls = 0
+
+    def open(self, _url: str, *, timeout: int):
+        assert timeout == 60
+        self.calls += 1
+        outcome = self._outcomes.pop(0)
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome
+
+
+def _http_error(url: str, code: int, *, retry_after: str | None = None):
+    headers = Message()
+    if retry_after is not None:
+        headers["Retry-After"] = retry_after
+    return urllib.error.HTTPError(
+        url,
+        code,
+        "test HTTP failure",
+        headers,
+        io.BytesIO(),
+    )
 
 
 def test_pull_localize_po_initializes_latest(workspace: Path) -> None:
@@ -43,6 +91,67 @@ def test_downloader_rejects_local_file_urls() -> None:
 
     with pytest.raises(TranslationRepositoryConfigError, match="must be an HTTPS URL"):
         _download_url("file:///tmp/runner-secret")
+
+
+def test_downloader_retries_transient_http_failures() -> None:
+    """A short Localize 502/503 outage should not fail the whole scheduled smoke."""
+
+    url = "https://localize.example.test/download/latest.po"
+    opener = _SequenceOpener(
+        [
+            _http_error(url, 502),
+            _http_error(url, 503, retry_after="3"),
+            _FakeResponse(b"msgid \"ready\"\n"),
+        ]
+    )
+    sleeps: list[float] = []
+
+    payload = _download_url(url, opener=opener, sleep=sleeps.append)
+
+    assert payload == b"msgid \"ready\"\n"
+    assert opener.calls == 3
+    assert sleeps == [1.0, 3.0]
+
+
+def test_downloader_does_not_retry_non_transient_http_failures() -> None:
+    """Authentication and missing-resource failures must remain fail-fast."""
+
+    url = "https://localize.example.test/download/latest.po"
+    opener = _SequenceOpener([_http_error(url, 404)])
+    sleeps: list[float] = []
+
+    with pytest.raises(urllib.error.HTTPError) as error_info:
+        _download_url(url, opener=opener, sleep=sleeps.append)
+
+    assert error_info.value.code == 404
+    assert opener.calls == 1
+    assert sleeps == []
+
+
+def test_downloader_stops_after_configured_transient_attempts() -> None:
+    """Persistent upstream failure remains visible after bounded retries."""
+
+    url = "https://localize.example.test/download/latest.po"
+    opener = _SequenceOpener(
+        [
+            _http_error(url, 502),
+            _http_error(url, 502),
+            _http_error(url, 502),
+        ]
+    )
+    sleeps: list[float] = []
+
+    with pytest.raises(urllib.error.HTTPError) as error_info:
+        _download_url(
+            url,
+            max_attempts=3,
+            opener=opener,
+            sleep=sleeps.append,
+        )
+
+    assert error_info.value.code == 502
+    assert opener.calls == 3
+    assert sleeps == [1.0, 2.0]
 
 
 def test_redirect_handler_allows_same_origin_https_redirect() -> None:
