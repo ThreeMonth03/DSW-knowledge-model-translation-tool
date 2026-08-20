@@ -101,14 +101,14 @@ def test_downloader_retries_transient_http_failures() -> None:
         [
             _http_error(url, 502),
             _http_error(url, 503, retry_after="3"),
-            _FakeResponse(b"msgid \"ready\"\n"),
+            _FakeResponse(b'msgid "ready"\n'),
         ]
     )
     sleeps: list[float] = []
 
     payload = _download_url(url, opener=opener, sleep=sleeps.append)
 
-    assert payload == b"msgid \"ready\"\n"
+    assert payload == b'msgid "ready"\n'
     assert opener.calls == 3
     assert sleeps == [1.0, 3.0]
 

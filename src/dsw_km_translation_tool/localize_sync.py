@@ -136,9 +136,7 @@ def _download_url(
     if max_attempts < 1:
         raise ValueError("max_attempts must be at least 1")
 
-    trusted_opener = opener or urllib.request.build_opener(
-        _SameOriginHttpsRedirectHandler(url)
-    )
+    trusted_opener = opener or urllib.request.build_opener(_SameOriginHttpsRedirectHandler(url))
     for attempt in range(1, max_attempts + 1):
         try:
             with trusted_opener.open(url, timeout=60) as response:
