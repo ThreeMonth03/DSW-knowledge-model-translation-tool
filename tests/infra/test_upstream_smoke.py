@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import urllib.error
 from pathlib import Path
 
 from dsw_km_translation_tool.upstream_smoke import (
@@ -40,12 +41,67 @@ def test_upstream_smoke_builds_current_upstream_inputs(
     assert result.registry_version == "2.7.0"
     assert result.km_bundle_initialized is True
     assert result.localize_po_initialized is True
+    assert result.localize_source == "weblate"
+    assert result.localize_fallback_reason is None
     assert result.alignment_aligned is True
     assert (work_dir / "sources/localize/zh_Hant/latest.po").exists()
     assert (work_dir / "sources/knowledge-models/dsw-root-2.7.0/dsw-root-2.7.0.km").exists()
     assert (work_dir / "builds/final_translated.po").exists()
     assert (work_dir / "builds/final_translated.km").exists()
     assert "Status: **passed**" in render_upstream_smoke_markdown(result)
+
+
+def test_upstream_smoke_uses_github_mirror_during_localize_maintenance(
+    workspace: Path,
+    po_path: Path,
+    model_path: Path,
+) -> None:
+    """Verify a transient Weblate outage falls back to its configured GitHub mirror."""
+
+    config_template = workspace / "template.yml"
+    work_dir = workspace / "upstream-smoke"
+    write_config(config_template)
+    primary_url = (
+        "https://localize.ds-wizard.org/download/knowledge-models/"
+        "common-dsw-knowledge-model/zh_Hant/"
+    )
+    fallback_url = (
+        "https://raw.githubusercontent.com/ds-wizard/dsw-root-locales/main/"
+        "locales/zh_Hant/messages.po"
+    )
+    requested_urls: list[str] = []
+
+    def localize_downloader(url: str) -> bytes:
+        requested_urls.append(url)
+        if url == primary_url:
+            raise urllib.error.HTTPError(
+                url,
+                502,
+                "maintenance",
+                None,
+                None,
+            )
+        assert url == fallback_url
+        return po_path.read_bytes()
+
+    result = run_upstream_smoke(
+        work_dir=work_dir,
+        config_template_path=config_template,
+        registry_token="secret",
+        registry_downloader=lambda _url: registry_payload("2.7.0"),
+        bundle_downloader=lambda _url, _token: model_path.read_bytes(),
+        localize_downloader=localize_downloader,
+    )
+
+    assert requested_urls == [primary_url, fallback_url]
+    assert result.status == "passed:repository-fallback"
+    assert result.localize_source == "github-repository"
+    assert "HTTP Error 502" in (result.localize_fallback_reason or "")
+    assert result.alignment_aligned is True
+    assert (work_dir / "sources/localize/zh_Hant/latest.po").read_bytes() == po_path.read_bytes()
+    report = render_upstream_smoke_markdown(result)
+    assert "Status: **passed:repository-fallback**" in report
+    assert "github-repository" in report
 
 
 def test_upstream_smoke_reuses_matching_cached_km_bundle(
