@@ -4,17 +4,26 @@ from __future__ import annotations
 
 import json
 import shutil
+import urllib.error
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from urllib.parse import quote, urlsplit
 
 from .alignment_status import build_alignment_status_report
 from .km_bundle_sync import BundleDownloader, pull_km_bundle
 from .km_latest_sync import update_knowledge_model_version
 from .km_registry import Downloader, discover_km_versions
 from .localize_sync import Downloader as LocalizeDownloader
-from .localize_sync import pull_localize_po
+from .localize_sync import (
+    LocalizePullResult,
+    _download_url,
+    is_retryable_localize_download_error,
+    pull_localize_po,
+)
 from .translation_repository_config import (
+    TranslationRepositoryConfig,
     load_translation_repository_config,
+    require_localize_config,
     version_paths,
 )
 from .workflow import TranslationWorkflowService
@@ -35,6 +44,8 @@ class UpstreamSmokeResult:
     registry_version: str | None
     source_km_path: str | None = None
     localize_po_path: str | None = None
+    localize_source: str | None = None
+    localize_fallback_reason: str | None = None
     final_po_path: str | None = None
     final_km_path: str | None = None
     km_bundle_changed: bool = False
@@ -98,6 +109,12 @@ def run_upstream_smoke(
     updated_config = load_translation_repository_config(config_path)
     paths = version_paths(updated_config)
 
+    source_km_path = resolved_work_dir / paths.source_km_path
+    latest_po_path = resolved_work_dir / paths.localize_latest_po_path
+    tree_dir = resolved_work_dir / paths.translation_tree_dir
+    final_po_path = resolved_work_dir / paths.final_po_path
+    final_km_path = resolved_work_dir / paths.final_km_path
+
     km_result = pull_km_bundle(
         config_path=config_path,
         repo_root=resolved_work_dir,
@@ -105,17 +122,17 @@ def run_upstream_smoke(
         downloader=bundle_downloader,
         allow_existing_change=True,
     )
-    localize_result = pull_localize_po(
+    (
+        localize_result,
+        localize_source,
+        localize_fallback_reason,
+    ) = _pull_localize_with_repository_fallback(
         config_path=config_path,
         repo_root=resolved_work_dir,
+        config=updated_config,
+        latest_po_path=latest_po_path,
         downloader=localize_downloader,
     )
-
-    source_km_path = resolved_work_dir / paths.source_km_path
-    latest_po_path = resolved_work_dir / paths.localize_latest_po_path
-    tree_dir = resolved_work_dir / paths.translation_tree_dir
-    final_po_path = resolved_work_dir / paths.final_po_path
-    final_km_path = resolved_work_dir / paths.final_km_path
 
     workflow = TranslationWorkflowService(
         source_lang=updated_config.translation.source_language,
@@ -154,14 +171,17 @@ def run_upstream_smoke(
     if not alignment.aligned:
         raise UpstreamSmokeError("Generated upstream smoke artifacts are not aligned")
 
+    status = "passed" if localize_source == "weblate" else "passed:repository-fallback"
     return UpstreamSmokeResult(
-        status="passed",
+        status=status,
         work_dir=str(resolved_work_dir),
         config_path=str(config_path),
         configured_version=configured_version,
         registry_version=registry_version,
         source_km_path=str(source_km_path),
         localize_po_path=str(latest_po_path),
+        localize_source=localize_source,
+        localize_fallback_reason=localize_fallback_reason,
         final_po_path=str(final_po_path),
         final_km_path=str(final_km_path),
         km_bundle_changed=km_result.changed,
@@ -169,6 +189,110 @@ def run_upstream_smoke(
         localize_po_changed=localize_result.changed,
         localize_po_initialized=localize_result.initialized,
         alignment_aligned=alignment.aligned,
+    )
+
+
+def _pull_localize_with_repository_fallback(
+    *,
+    config_path: Path,
+    repo_root: Path,
+    config: TranslationRepositoryConfig,
+    latest_po_path: Path,
+    downloader: LocalizeDownloader | None,
+) -> tuple[LocalizePullResult, str, str | None]:
+    """Pull live Weblate content or its configured GitHub mirror during maintenance."""
+
+    try:
+        result = pull_localize_po(
+            config_path=config_path,
+            repo_root=repo_root,
+            downloader=downloader,
+        )
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as error:
+        if not is_retryable_localize_download_error(error):
+            raise
+        localize = require_localize_config(config)
+        fallback_url = _github_repository_po_url(
+            repository=localize.repository,
+            target_language=config.translation.target_language,
+        )
+        if fallback_url is None:
+            raise UpstreamSmokeError(
+                "Localize is temporarily unavailable and no supported GitHub "
+                "repository fallback is configured"
+            ) from error
+        download = downloader or _download_url
+        try:
+            payload = download(fallback_url)
+        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as fallback_error:
+            raise UpstreamSmokeError(
+                "Localize is temporarily unavailable and the configured GitHub "
+                f"repository fallback also failed: {fallback_error}"
+            ) from fallback_error
+        result = _write_localize_fallback_snapshot(
+            version=config.knowledge_model.version,
+            url=fallback_url,
+            latest_po_path=latest_po_path,
+            payload=payload,
+        )
+        return result, "github-repository", f"{type(error).__name__}: {error}"
+    return result, "weblate", None
+
+
+def _github_repository_po_url(
+    *,
+    repository: str | None,
+    target_language: str,
+) -> str | None:
+    """Derive the conventional PO snapshot URL for a configured GitHub mirror."""
+
+    if not repository:
+        return None
+    parsed = urlsplit(repository)
+    if (
+        parsed.scheme != "https"
+        or (parsed.hostname or "").lower() != "github.com"
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+    ):
+        return None
+    parts = [part for part in parsed.path.split("/") if part]
+    if len(parts) != 2:
+        return None
+    owner, repository_name = parts
+    repository_name = repository_name.removesuffix(".git")
+    if not owner or not repository_name:
+        return None
+    return (
+        "https://raw.githubusercontent.com/"
+        f"{quote(owner, safe='')}/{quote(repository_name, safe='')}/main/"
+        f"locales/{quote(target_language, safe='')}/messages.po"
+    )
+
+
+def _write_localize_fallback_snapshot(
+    *,
+    version: str,
+    url: str,
+    latest_po_path: Path,
+    payload: bytes,
+) -> LocalizePullResult:
+    """Store a GitHub-mirrored PO using the normal Localize result contract."""
+
+    previous = latest_po_path.read_bytes() if latest_po_path.exists() else None
+    changed = previous != payload
+    if changed:
+        latest_po_path.parent.mkdir(parents=True, exist_ok=True)
+        latest_po_path.write_bytes(payload)
+    return LocalizePullResult(
+        version=version,
+        url=url,
+        latest_po_path=latest_po_path,
+        changed=changed,
+        initialized=previous is None,
+        bytes_downloaded=len(payload),
     )
 
 
@@ -187,6 +311,8 @@ def render_upstream_smoke_markdown(result: UpstreamSmokeResult) -> str:
         f"| Registry latest version | {_format_value(result.registry_version)} |",
         f"| Source KM | {_format_value(result.source_km_path)} |",
         f"| Localize PO | {_format_value(result.localize_po_path)} |",
+        f"| Localize source | {_format_value(result.localize_source)} |",
+        f"| Localize fallback reason | {_format_value(result.localize_fallback_reason)} |",
         f"| Final PO | {_format_value(result.final_po_path)} |",
         f"| Final KM | {_format_value(result.final_km_path)} |",
         f"| KM bundle changed | {'yes' if result.km_bundle_changed else 'no'} |",
