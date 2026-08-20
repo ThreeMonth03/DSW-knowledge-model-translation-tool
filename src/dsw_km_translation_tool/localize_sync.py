@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import logging
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 from .translation_repository_config import (
@@ -17,6 +22,10 @@ from .translation_repository_config import (
 )
 
 Downloader = Callable[[str], bytes]
+_LOGGER = logging.getLogger(__name__)
+_RETRYABLE_HTTP_STATUS_CODES = frozenset({408, 425, 429, 500, 502, 503, 504})
+_DEFAULT_DOWNLOAD_ATTEMPTS = 5
+_MAX_RETRY_DELAY_SECONDS = 30.0
 
 
 @dataclass(frozen=True)
@@ -114,10 +123,75 @@ def _url_origin(url: str) -> tuple[str, str, int]:
     return parsed.scheme.lower(), (parsed.hostname or "").lower(), port or 443
 
 
-def _download_url(url: str) -> bytes:
-    """Download one URL without following unsafe redirects."""
+def _download_url(
+    url: str,
+    *,
+    max_attempts: int = _DEFAULT_DOWNLOAD_ATTEMPTS,
+    sleep: Callable[[float], None] = time.sleep,
+    opener: urllib.request.OpenerDirector | None = None,
+) -> bytes:
+    """Download one URL, retrying transient failures without relaxing URL safety."""
 
     _validate_https_url(url, "localize.download_url")
-    opener = urllib.request.build_opener(_SameOriginHttpsRedirectHandler(url))
-    with opener.open(url, timeout=60) as response:
-        return response.read()
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be at least 1")
+
+    trusted_opener = opener or urllib.request.build_opener(
+        _SameOriginHttpsRedirectHandler(url)
+    )
+    for attempt in range(1, max_attempts + 1):
+        try:
+            with trusted_opener.open(url, timeout=60) as response:
+                return response.read()
+        except urllib.error.HTTPError as error:
+            if error.code not in _RETRYABLE_HTTP_STATUS_CODES or attempt == max_attempts:
+                raise
+            delay = _retry_delay_seconds(
+                attempt=attempt,
+                retry_after=error.headers.get("Retry-After") if error.headers else None,
+            )
+            error.close()
+            _LOGGER.warning(
+                "Localize download returned HTTP %s; retrying attempt %s/%s in %.1fs",
+                error.code,
+                attempt + 1,
+                max_attempts,
+                delay,
+            )
+        except (urllib.error.URLError, TimeoutError) as error:
+            if attempt == max_attempts:
+                raise
+            delay = _retry_delay_seconds(attempt=attempt, retry_after=None)
+            _LOGGER.warning(
+                "Localize download failed temporarily (%s); retrying attempt %s/%s in %.1fs",
+                error,
+                attempt + 1,
+                max_attempts,
+                delay,
+            )
+        sleep(delay)
+
+    raise AssertionError("Localize download retry loop exited unexpectedly")
+
+
+def _retry_delay_seconds(*, attempt: int, retry_after: str | None) -> float:
+    """Return a bounded Retry-After or exponential-backoff delay."""
+
+    if retry_after:
+        try:
+            seconds = float(retry_after)
+        except ValueError:
+            try:
+                retry_at = parsedate_to_datetime(retry_after)
+            except (TypeError, ValueError, OverflowError):
+                retry_at = None
+            if retry_at is not None:
+                if retry_at.tzinfo is None:
+                    retry_at = retry_at.replace(tzinfo=timezone.utc)
+                seconds = (retry_at - datetime.now(timezone.utc)).total_seconds()
+            else:
+                seconds = -1.0
+        if seconds >= 0:
+            return min(seconds, _MAX_RETRY_DELAY_SECONDS)
+
+    return min(float(2 ** (attempt - 1)), 8.0)
